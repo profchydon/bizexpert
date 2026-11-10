@@ -1,0 +1,26 @@
+{
+  "name": "bizexpert",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "packageManager": "npm@10.9.0",
+  "scripts": {
+    "dev": "turbo run dev --filter=@bizexpert/api --filter=@bizexpert/main",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "db:migrate": "npm run db:migrate --workspace=apps/api",
+    "db:seed": "npm run db:seed --workspace=apps/api"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3"
+  },
+  "overrides": {
+    "@types/react": "^19.2.4",
+    "@types/react-dom": "^19.2.4"
+  }
+}
+

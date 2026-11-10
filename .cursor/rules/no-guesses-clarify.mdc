@@ -1,0 +1,48 @@
+---
+description: Never guess or assume - verify against real sources and ask for clarification
+globs:
+alwaysApply: true
+---
+
+# No Guesses Or Assumptions
+
+Do **not** guess, assume, or invent anything. When any part of a task is
+unclear, stop and ask the user for clarification before writing or changing code.
+
+## When to stop and ask
+
+Ask the user (do not proceed on a guess) whenever any of these are unclear:
+
+- Requirements, scope, or expected behavior.
+- API contracts: endpoints, request/response shapes, field names, enums, formats.
+- IDs, paths, keys, or config values.
+- Where UI should live, or how a value should flow through the app.
+- Data formats (dates, currencies, units) and required vs optional fields.
+
+## Verify against real sources first
+
+Before asking, gather facts from authoritative sources instead of assuming:
+
+- Read the actual code, types, and existing patterns in this repo.
+- Check the API docs / OpenAPI spec for the exact contract.
+- When credentials/tokens are provided, call **safe, read-only** endpoints to
+  observe the real response instead of assuming its shape.
+- **Never** call endpoints with side effects (payments, order/transaction
+  creation, deletes) just to inspect them — ask the user first.
+
+## How to ask
+
+- Use the structured question tool with concrete, grounded options.
+- Prefer a recommended default (backed by an existing pattern) but still confirm.
+- Do not silently pick one interpretation and continue.
+
+## Anti-patterns
+
+```txt
+// BAD: "I'll assume the response has a `fee_summary` field like the other endpoint."
+// BAD: "I'll guess the date format is ISO with time."
+// BAD: Calling POST /initiate (creates a real charge) just to see the response.
+
+// GOOD: Verified the shape via a read-only call / the spec, then confirmed the
+//       ambiguous bits (placement, format, required-ness) with the user.
+```

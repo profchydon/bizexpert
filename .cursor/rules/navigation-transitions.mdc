@@ -1,0 +1,56 @@
+---
+description: Wrap router.push navigation in startTransition and show button loading state
+alwaysApply: true
+---
+# Navigation Transitions
+
+For interactive buttons that trigger navigation via `router.push()`, provide instant visual feedback while the route change is pending.
+
+## Required pattern
+
+1. Use [useTransitionRouter](mdc:apps/web/src/hooks/useTransitionRouter.ts) instead of calling `useRouter().push()` directly from click handlers.
+2. Bind `isPending` from the hook to the triggering button's `isLoading` prop ([Button](mdc:apps/web/src/components/ui/button.tsx) supports `isLoading`).
+3. Keep `router.push()` inside the hook's `push` / `replace` helpers so navigation runs inside `startTransition`.
+
+```tsx
+import { Button } from "@/components/ui/button";
+import { useTransitionRouter } from "@/hooks/useTransitionRouter";
+
+const Example = () => {
+  const { push, isPending } = useTransitionRouter();
+
+  return (
+    <Button isLoading={isPending} onClick={() => push("/dashboard/employees")}>
+      Continue
+    </Button>
+  );
+};
+```
+
+## Lists and menus
+
+When multiple buttons can navigate, track which item was clicked and scope loading to that control:
+
+```tsx
+const [activeId, setActiveId] = useState<string | null>(null);
+const { push, isPending } = useTransitionRouter();
+
+<Button
+  isLoading={isPending && activeId === item.id}
+  onClick={() => {
+    setActiveId(item.id);
+    push(`/dashboard/orders/${item.id}`);
+  }}
+>
+  View
+</Button>
+```
+
+## Non-button triggers
+
+If navigation is started from a tab, menu item, or custom control without `isLoading`, disable the control while `isPending` is true.
+
+## Do not
+
+- Call `router.push()` directly on `Button` / `ActionItem` click handlers for user-initiated navigation.
+- Show a full-page loader for these transitions when a button-level `isLoading` state is enough.

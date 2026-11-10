@@ -1,0 +1,203 @@
+---
+alwaysApply: true
+---
+# Tech Stack & Dependencies
+
+Source of truth: [package.json](mdc:apps/web/package.json). When versions disagree with this file, `package.json` wins — update this rule.
+
+## Framework & Runtime
+
+| Package | Version | Notes |
+|---------|---------|-------|
+| `next` | ^16.1.5 | App Router, Turbopack default, async dynamic APIs. |
+| `react` / `react-dom` | ^19.2.3 | Concurrent + Actions APIs, `ref` as prop. |
+| `typescript` | ^5.8.3 | Strict mode expected. |
+| `@types/node` | ^20.16.12 | Target Node 20+. |
+| `sharp` | ^0.33.5 | Required for `next/image` optimization in standalone builds. |
+
+### Next.js 16 best practices
+
+- **Async dynamic APIs.** `params`, `searchParams`, `cookies()`, `headers()`, and `draftMode()` return Promises. `await` in Server Components / Route Handlers; in Client Components use React `use()`.
+  ```ts
+  // ✅ Server component
+  export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+  }
+
+  // ❌ Sync access (Next 14 style) breaks at runtime
+  export default function Page({ params }: { params: { id: string } }) {
+    const { id } = params;
+  }
+  ```
+- **Turbopack is default** for `dev` and `build`. The `--turbo` flag is no longer needed; the `dev-turbo` script is redundant.
+- **Caching is opt-in** (Cache Components). Mark cacheable boundaries explicitly with `"use cache"` rather than relying on implicit fetch caching.
+- **Server Components by default.** Add `"use client"` only when you need state, effects, browser APIs, or event handlers.
+- **Route handlers** (`src/app/api/**/route.ts`) replace API routes; export named HTTP verbs.
+- **`next/image`** for any raster image; configured `images.domains` in [next.config.ts](mdc:apps/web/next.config.ts) — extend that list rather than disabling optimization.
+- **`output: "standalone"`** is set; do not break that contract (no `fs`-relative reads at runtime outside `process.cwd()` aware paths).
+
+### React 19 best practices
+
+- **`ref` is a prop** for function components — do **not** add new `forwardRef` wrappers. Existing `forwardRef` usage in [src/components/ui](mdc:apps/web/src/components/ui) (shadcn) can stay; new code should not add it.
+- **Forms:** prefer `useActionState` + Server Actions for new server-driven forms. For our existing client-side forms, keep using **react-hook-form**.
+- **`use()`** for reading Promises/Context inside render (great with `params`/`searchParams` in Client Components).
+- **No `defaultProps`** on function components; use default destructuring.
+- **React Compiler** is supported by Next 16 — do **not** add manual `useMemo`/`useCallback` purely for re-render optimization unless profiling shows a need.
+
+## Styling & UI Primitives
+
+| Package | Version | Notes |
+|---------|---------|-------|
+| `tailwindcss` | ^3.4.1 | **v3**, not v4 — keep `tailwind.config.ts` + `postcss` pipeline. |
+| `tailwindcss-animate` | ^1.0.7 | Used by shadcn animations. |
+| `tailwind-merge` | ^2.3.0 | Pair with `clsx` via `cn()` in [src/lib/utils](mdc:apps/web/src/lib/utils.ts). |
+| `clsx` / `classnames` | ^2.1.1 / ^2.5.1 | Prefer `clsx` + `cn()`; do not introduce new `classnames` usage. |
+| `class-variance-authority` | ^0.7.0 | Variants for shadcn-style components. |
+| `@radix-ui/*` | 1.x / 2.x | Headless primitives behind shadcn wrappers in `components/ui`. |
+| `lucide-react` | ^0.378.0 | Default icon set. Prefer over `react-icons` for new code. |
+| `react-icons` | ^5.2.1 | Legacy; only use when an icon is missing from Lucide. |
+| `framer-motion` | ^11.11.11 | Animations. Import from `framer-motion`, mark client. |
+| `sonner` | ^1.5.0 | Toasts (mounted in root layout). Prefer over `react-toastify`. |
+| `react-toastify` | ^10.0.5 | Legacy — do not add new usage. |
+| `vaul` | ^0.9.1 | Mobile drawers. |
+| `cmdk` | ^1.0.0 | Command palette. |
+| `next-themes` | ^0.3.0 | Theme provider. |
+
+**Conventions**
+- Use `cn()` from `@/lib/utils` for conditional class names — never hand-roll merging.
+- New UI primitives belong in `src/components/ui` and follow the shadcn structure already present.
+- Stick to design tokens in [src/styles/theme.css](mdc:apps/web/src/styles/theme.css) and [legacy-bridge.css](mdc:apps/web/src/styles/legacy-bridge.css); avoid arbitrary `text-[#xxxxxx]` colors.
+
+## State & Data
+
+| Package | Version | Notes |
+|---------|---------|-------|
+| `@tanstack/react-query` | ^5.59.20 | Server state in pages and dashboard components. |
+| `axios` | ^1.7.9 | HTTP client and 401 handling in [src/lib/api.ts](mdc:apps/web/src/lib/api.ts). |
+| React context | — | Auth and tenant in [src/store/auth-context.tsx](mdc:apps/web/src/store/auth-context.tsx) and [business-context.tsx](mdc:apps/web/src/store/business-context.tsx). |
+
+**Conventions**
+- Use `useQuery` / `useMutation` with keys scoped by `businessId` (and `locationId` when filtered).
+- Do not call `axios` directly from components; go through `api` helpers or shared hooks.
+- Persist session via [src/lib/auth.ts](mdc:apps/web/src/lib/auth.ts) (`localStorage` token, user, business).
+
+## Forms & Validation
+
+| Package | Version | Notes |
+|---------|---------|-------|
+| `react-hook-form` | ^7.51.4 | Standard form lib for client forms. |
+| `@hookform/resolvers` | ^3.3.4 | Adapter for Zod. |
+| `zod` | ^3.23.8 | **v3** schemas — `z.object`, `z.infer`. Avoid v4-only APIs. |
+| `react-password-checklist` | ^1.8.0 | Used by signup. |
+| `input-otp` | ^1.2.4 | OTP input primitive. |
+| `react-phone-number-input` | ^3.4.3 | Phone field. |
+
+**Pattern**
+```ts
+const schema = z.object({ email: z.string().email() });
+type Values = z.infer<typeof schema>;
+
+const form = useForm<Values>({ resolver: zodResolver(schema), mode: "onChange" });
+```
+
+## Tables, Charts, Maps, Media
+
+| Package | Version | Notes |
+|---------|---------|-------|
+| `@tanstack/react-table` | ^8.17.3 | Headless tables; wrap with shared shells in `components/`. |
+| `recharts` | ^2.12.7 | Charting. |
+| `leaflet` | ^1.9.4 | Map engine. |
+| `react-leaflet` | ^5.0.0 | React bindings — **requires React 18+/19** and dynamic import (no SSR). |
+| `react-leaflet-cluster` | ^4.0.0 | Marker clustering. |
+| `@react-leaflet/core` | ^3.0.0 | Used by `react-leaflet`. |
+| `react-pdf` | ^9.2.1 | PDF viewer. |
+| `pdfjs-dist` | ^5.2.133 | Worker for `react-pdf`; pin compatible major. |
+| `@cyntler/react-doc-viewer` | ^1.17.0 | Doc previews. |
+| `lottie-react` | ^2.4.1 | Lottie animations. |
+| `embla-carousel*` | ^8.3.1 | Carousels (use `embla-carousel-react`). |
+| `keen-slider` | ^6.8.6 | Legacy slider — prefer Embla for new code. |
+| `react-modern-drawer` | ^1.3.1 | Drawers (legacy; prefer `vaul` or Radix Dialog where possible). |
+
+**Conventions**
+- Anything that touches `window`/`document` (Leaflet, PDF.js, Lottie, Embla) must be dynamically imported with `ssr: false` or guarded behind `"use client"`.
+
+## Dates, Numbers, i18n, Misc Utilities
+
+| Package | Version | Notes |
+|---------|---------|-------|
+| `date-fns` | ^3.6.0 | Tree-shakable date utils. **Default for new code.** |
+| `dayjs` | ^1.11.12 | Used in older modules; do not introduce in new code if `date-fns` suffices. |
+| `lodash` | ^4.17.21 | Import per-method (`import debounce from "lodash/debounce"`) to keep bundles small. |
+| `use-debounce` / `debounce` | ^10.0.3 / ^2.1.0 | Prefer `use-debounce` hook in React code. |
+| `millify` | ^6.1.0 | Compact number formatting. |
+| `filesize` | ^10.1.6 | Human-readable file sizes. |
+| `crypto-js` | ^4.2.0 | Symmetric crypto helpers in [src/utils](mdc:apps/web/src/utils). |
+| `crypto-browserify` | ^3.12.0 | Polyfill — only used for legacy code paths. |
+| `papaparse` | ^5.4.1 | CSV parsing. |
+| `xlsx` / `read-excel-file` | ^0.18.5 / ^5.8.3 | Excel import/export. |
+| `country-state-city`, `countries-list`, `country-list`, `country-code-lookup`, `country-to-currency`, `currency-symbol-map`, `world-countries`, `world-map-geojson`, `geojson-world-map`, `react-country-flag`, `react-flags-select`, `react-select-country-list` | various | Country/locale data; **prefer one source per feature** instead of mixing. New code should default to `country-state-city` + `react-country-flag`. |
+
+## Observability & Analytics
+
+| Package | Version | Notes |
+|---------|---------|-------|
+| `@sentry/nextjs` | ^8.26.0 | Configured via [next.config.ts](mdc:apps/web/next.config.ts); do not bypass. |
+| `@sentry/cli` | ^2.36.2 | Build-time source map upload (CI). |
+| `@logtail/next` | ^0.3.1 | Wrapped via `withLogtail` in `next.config.mjs`. Compatible with Next 15+. |
+| `posthog-js` | ^1.178.0 | Provider in [src/lib/PostHog](mdc:apps/web/src/lib/PostHog.tsx); use `posthog.capture(...)` for events. |
+| `@next/third-parties` | ^15.0.2 | GTM via `<GoogleTagManager>` in root layout. |
+| `nextjs-toploader` | ^1.6.12 | Page-transition progress bar. |
+
+**Conventions**
+- All client-side errors funnel through Sentry — do not add `try/catch` that swallows without a `Sentry.captureException`.
+- New analytics events go through PostHog; do not add new GTM tags ad hoc.
+
+## Build, Lint, Format, Tooling
+
+| Package | Version | Notes |
+|---------|---------|-------|
+| `prettier` | ^3.2.5 | Formatter (run via `pretty-quick`). |
+| `pretty-quick` | ^4.0.0 | Pre-commit formatting. |
+| `husky` | ^8.0.3 | Git hooks (`postinstall` installs them). |
+| `commitizen` + `cz-conventional-changelog` | ^4.3.0 / ^3.3.0 | Conventional commits via `npm run commit-msg`. |
+| `@commitlint/*` | ^19.x | Commit message linting. |
+| `cross-env` | ^10.0.0 | Env injection across platforms. |
+| `tsx` | ^4.19.3 | Used by `scripts/add-testids.ts`. |
+| `ts-morph` | ^25.0.1 | AST transforms in scripts. |
+| `postcss` | ^8 | Tailwind pipeline. |
+
+**Workflow**
+- Lint with `npm run lint`; format with `npm run format`. Do not bypass `pretty-quick` in commits.
+- Use Conventional Commits (`feat:`, `fix:`, `chore:`, etc.); `npm run commit-msg` runs Commitizen.
+
+## Versioning & Upgrade Rules
+
+1. **Do not** silently bump major versions of: `next`, `react`, `react-dom`, `tailwindcss`, `@reduxjs/toolkit`, `zod`, `react-hook-form`, `@sentry/nextjs`, `@logtail/next`, `react-leaflet`, `pdfjs-dist`. These have peer-dependency or breaking-API impact across the app.
+2. When adding a dependency, **check peer ranges against `next@16` and `react@19`**. Reject anything that pins `next <15` or `react <18`.
+3. Prefer existing libraries listed above over functionally equivalent newcomers (e.g., do not add `moment`, `formik`, `yup`, `zustand`, `swr`, `tanstack-query`, `styled-components`, `emotion`).
+4. After any dependency change, run `npm install` (no `--legacy-peer-deps` unless explicitly approved) and update this rule if you add/remove a major lib.
+
+## Quick "do/don't" cheatsheet
+
+```ts
+// ✅ async params (Next 16)
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+}
+
+// ✅ class merging
+import { cn } from "@/lib/utils";
+<div className={cn("p-4", isActive && "bg-primary-50")} />
+
+// ✅ form
+const form = useForm<Values>({ resolver: zodResolver(schema) });
+
+// ❌ don't add forwardRef in new components (React 19)
+const Btn = React.forwardRef<HTMLButtonElement, Props>((p, ref) => <button ref={ref} {...p} />);
+
+// ❌ don't call axios directly in a component
+const data = await axios.get("/api/orders"); // use src/api RTK Query module
+
+// ❌ don't introduce new toast lib
+import { toast } from "react-hot-toast"; // use sonner
+```

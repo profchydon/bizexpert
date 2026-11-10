@@ -1,0 +1,62 @@
+---
+alwaysApply: true
+---
+## 2. Tests Are Required
+
+For every completed feature or logic change, you MUST:
+
+- Write **supported test cases** relevant to the change
+- Use the project’s existing testing framework and conventions
+- Cover:
+  - Expected behavior (happy path)
+  - Edge cases where applicable
+  - Failure cases for critical logic
+
+### Testing Rules
+- Do NOT introduce new testing frameworks unless explicitly requested
+- If a change cannot reasonably be tested, explain why
+- Code changes without tests are incomplete
+
+---
+
+## 3. Global Engineering Best Practices
+
+You must follow **accepted global engineering best practices**, including but not limited to:
+
+- Clear, readable, maintainable code
+- Single-responsibility functions and modules
+- Meaningful naming (variables, functions, files)
+- Proper error handling and validation
+- No unnecessary abstractions
+- No premature optimization
+
+---
+
+## 4. Safety & Scope Control
+
+- Modify only files directly related to the task
+- Do NOT introduce breaking changes without explicit instruction
+- Preserve existing public APIs unless told otherwise
+- Ask before making architectural decisions
+
+---
+
+## 5. Output Expectations
+
+When responding:
+
+1. Briefly explain **what was done and why**
+2. Mention **where the changelog was updated**
+3. Mention **what tests were added or updated**
+4. Then show code changes (prefer diffs over full files)
+
+---
+
+## Enforcement Principle
+
+If any of the following are missing:
+- Changelog update
+- Tests
+- Best-practice adherence
+
+→ The task is **not complete**.

@@ -1,0 +1,128 @@
+---
+description: UI conventions for summary cards (shadcn Card), react-select Autocomplete, and CopyInput—patterns from AddressCard, autocomplete, and CopyInput.
+globs:
+  - src/components/OrderSummary/**/*
+  - src/components/ui/autocomplete.tsx
+  - src/components/CopyInput.tsx
+alwaysApply: false
+---
+# Order summary cards, Autocomplete, and CopyInput conventions
+
+Reference implementations: [AddressCard.tsx](mdc:src/components/OrderSummary/AddressCard.tsx), [autocomplete.tsx](mdc:src/components/ui/autocomplete.tsx), [CopyInput.tsx](mdc:src/components/CopyInput.tsx).
+
+## Shared patterns (all three)
+
+1. **Typing.** Use `React.FC<Props>` (or `FC<...>`) with a dedicated `Props` / `*Props` interface at module scope. Export the main component as `default`.
+2. **Class merging.** Use `cn()` from `@/lib/utils` whenever classes are conditional or extended (see `ListCard` in AddressCard, option row in Autocomplete).
+3. **Icons.** Prefer **Lucide** (`lucide-react`) for UI chrome (`Check`, `Copy`). For country flags, use **react-country-flag** with `svg` and explicit pixel dimensions when needed.
+4. **Test hooks.** Pass `data-testid` through props where the component is the integration surface (`Autocomplete` spreads `...restProps`; `CopyInput` hard-codes `data-testid="copyinput-input"` on the input).
+5. **Accessibility.** Use native `type="button"` on icon-only or icon+label buttons that are not submit actions (CopyInput copy control).
+
+## AddressCard (summary Card layout)
+
+### Structure
+
+- Compose with **shadcn Card**: `Card` → `CardHeader` (`CardTitle`, `CardDescription`) → `Separator` → `CardContent`.
+- Reset Card padding on inner sections with `className="p-0"` on header/content; put outer padding on `Card` (e.g. `p-6`).
+- Use **Separator** between header block and body (`className="my-5"`).
+
+### Co-located subcomponents
+
+- Small, single-use helpers (e.g. `ListCard`) may live in the **same file** with their own `interface ListCardProps` and `FC<ListCardProps>`.
+- Pass optional `className` into helpers and merge with `cn("…base…", className)` for grid spans or spacing overrides (`col-span-2`).
+
+### Typography & color
+
+- Section title: `text-gray-900 text-2xl font-medium`.
+- Section description: `text-gray-600 text-sm`.
+- Field label (helper): `text-gray-500 text-sm font-semibold`.
+- Field value: `text-gray-700 text-sm`.
+- Align with existing gray scale; avoid one-off hex in Card text unless matching design tokens elsewhere.
+
+### Data display
+
+- Prefer **conditional blocks** (`field && <ListCard … />`) for optional rows instead of always rendering empty labels.
+- Normalize empty API values with `|| ""` (or equivalent) when rendering strings.
+- For enum-like strings from the API, use shared transformers (e.g. [underScoreTransformer](mdc:src/utils/underScoreTransformer.ts) `removeUserscore`) before display.
+- For missing / invalid values, use **Badge** from `@/components/ui/badge` (e.g. `variant="red"` + short label like “Not available”) mixed with string fallback pattern: `transformed || <Badge …>…</Badge>`.
+
+### Imports
+
+- Prefer `@/components/ui/...` for primitives. **Relative** imports to `ui` are acceptable in the same feature folder (e.g. `../ui/badge` from `OrderSummary`) but `@/` is preferred for consistency in new code.
+
+## Autocomplete (`react-select` wrapper)
+
+### Option model
+
+- Standardize options as `{ value: string; label: string; icon?: React.ReactNode }`.
+- Export selection types for consumers: `MultiSelectValue`, `SingleSelectValue` re-exported from `react-select` with the same shape.
+
+### Controlled API
+
+- **Controlled** via `selectedOption` + `setSelectedOption`. Do not rely on uncontrolled `defaultValue` for the primary value (component sets `defaultValue={null}` on the inner Select).
+- Support `isMulti`, `isSearchable`, `isClearable`, `placeholder`, optional `placeholderIcon`, `className`, `externalKey`, and `data-testid`.
+
+### Remount / key
+
+- When parent needs a full reset, pass **`externalKey`**; sync into local `internalKey` state in `useEffect` and pass `key={internalKey}` to `Select` so the instance remounts cleanly.
+
+### Styling (`StylesConfig`)
+
+- Keep styles in a **`customStyles`** object: spread `provided`, then override. Use project palette hex values consistently (e.g. border `#EAECF0`, primary text `#475467` / `#344054`, placeholder `#9CA3AF`).
+- **Control**: `borderRadius: 6px`, vertical padding on control, hover keeps same border color as idle.
+- **Single value**: ellipsis + flex row with optional icon; `maxWidth: "100%"`, `truncate` behavior via `textOverflow: "ellipsis"`.
+- **Multi value**: white background, `#D0D5DD` border, `6px` radius, medium weight labels.
+- **Input** (single-select): when menu closed and not multi, collapse input (`opacity: 0`, `width: 0`) so the field looks like a compact trigger; when menu opens, allow typing for search.
+- **Menu**: `zIndex: 1100` on both `menu` and `menuPortal` so dropdowns sit above app chrome (e.g. nav at `z-[102]`).
+
+### Portal & position
+
+- Set **`menuPosition="fixed"`** and **`menuPortalTarget={globalThis.document?.body}`** so menus escape overflow/stacking contexts. Use `globalThis.document` for SSR-safe access.
+
+### Custom components
+
+- **Option**: wrap `components.Option`, prepend optional `icon`, use `cn("mr-2", props.isSelected && "text-primary-600")` for icon tint; show **Lucide `Check`** when selected.
+- **SingleValue**: custom renderer that returns **`null` while `isMenuOpen` and not multi** so search UI is unobstructed; when closed, show icon + truncated label in a flex row (`min-w-0`, `truncate`).
+- **Placeholder**: implement with **`useCallback`**; depend on `selectedOption`, `isMulti`, `placeholder`, `placeholderIcon`, `isMenuOpen`. Only render placeholder when there is no value and menu is closed; support `placeholderIcon` beside text.
+- Spread **`animatedComponents`** from `react-select/animated` into `components` alongside overrides.
+
+### Menu / input lifecycle
+
+- Track **`isMenuOpen`** with `onMenuOpen` / `onMenuClose`.
+- On change: call `setSelectedOption`, then **`setInputValue("")`** to clear search after selection.
+- **`onInputChange`**: for `action === "input-change"` update local input; for `set-value` or `menu-close` clear input.
+- For single-select, pass **`inputValue={!isMulti && !isMenuOpen ? "" : inputValue}`** so the visible input resets when the menu closes.
+
+### Refs
+
+- `selectRef` is stored with **`useRef<any>(null)`** on the inner Select—when tightening types, prefer the type exported by `react-select` if available.
+
+### Wrapper
+
+- Outer **`div`** carries `data-testid={restProps["data-testid"]}` so tests target the composite without piercing Select internals.
+
+## CopyInput (read-only + copy)
+
+### Layout
+
+- **Single flex row** container: `border-[1px] border-gray-300 rounded-lg`.
+- **Input** (shadcn `Input`): `flex-1`, remove default border on the inner field (`border-none`), asymmetric radii on the left only (`rounded-bl-lg rounded-tl-lg`), vertical/horizontal padding in rem (`py-[0.625rem] px-[0.875rem]`), text `text-gray-900`.
+- **Copy control**: separate **button** with `border-l-[1px] border-l-gray-300`, `outline-none`, `gap-2`, padding `py-[0.625rem] px-[1.125rem]`, `disabled:cursor-not-allowed`.
+
+### Behavior
+
+- **`react-copy-to-clipboard`**: `text` is `value` normally; when **`readonlyMode`**, copy **`placeholder || ""`** instead (placeholder holds display copy in that mode).
+- Disable input with `disabled || readonlyMode`. Disable copy button when readonly and no placeholder, or when not readonly and no value.
+- Local **`copied`** state: set true in `onCopy`; reset to false when the user edits the input (`onChange`).
+- Label toggles **“Copy” / “Copied”** with a **Lucide `Copy`** icon at `size={16}`.
+
+### Conventions to preserve
+
+- Keep copy affordance as a **button** inside `CopyToClipboard`, not a raw div, for keyboard and semantics.
+- Do not remove `type="button"`—prevents accidental form submission when used inside `<form>`.
+
+## When adding similar components
+
+- **Summary blocks:** mirror Card + Separator + small field rows; reuse typography scale from AddressCard.
+- **Selects:** extend Autocomplete rather than adding a second `react-select` wrapper unless behavior diverges strongly; keep z-index and portal behavior consistent.
+- **Copy fields:** extend CopyInput or match its border/input/button split so forms stay visually consistent.

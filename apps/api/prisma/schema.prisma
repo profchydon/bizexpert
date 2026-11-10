@@ -1,0 +1,648 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BusinessRole {
+  owner
+  admin
+  business_manager
+  store_keeper
+  developer
+  customer_support
+  waybill_manager
+  sales_cashier
+  cashier
+  store_manager
+  accountant
+}
+
+enum LocationType {
+  shop
+  warehouse
+  branch
+}
+
+enum StockMovementType {
+  opening
+  receipt
+  sale
+  adjustment
+  transfer_in
+  transfer_out
+  damage
+  return
+  reversal
+}
+
+enum SaleSource {
+  web
+  whatsapp
+}
+
+enum SaleStatus {
+  completed
+  cancelled
+  refunded
+}
+
+enum PaymentStatus {
+  paid
+  partial
+  credit
+}
+
+enum PaymentMethod {
+  cash
+  transfer
+  pos
+  credit
+}
+
+enum PurchaseStatus {
+  pending
+  partial
+  received
+  cancelled
+}
+
+enum StockTransferStatus {
+  pending
+  in_transit
+  completed
+  cancelled
+}
+
+enum PendingActionType {
+  sale
+  stock_receipt
+  stock_transfer
+  stock_adjustment
+}
+
+enum PendingActionStatus {
+  pending
+  confirmed
+  expired
+  cancelled
+}
+
+enum ProductKind {
+  product
+  service
+}
+
+enum CustomerLedgerType {
+  wallet_credit
+  wallet_debit
+  debt
+  repayment
+  write_off
+}
+
+enum StocktakeStatus {
+  draft
+  counting
+  pending_approval
+  applied
+  cancelled
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(255)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @db.VarChar(255)
+  phone        String?  @db.VarChar(20)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(6)
+
+  businessMemberships BusinessMembership[]
+  locationMemberships LocationMembership[]
+  whatsappIdentities  WhatsappIdentity[]
+}
+
+model Business {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(255)
+  slug        String?  @unique @db.VarChar(255)
+  description String?
+  phone       String?  @db.VarChar(20)
+  email       String?  @db.VarChar(255)
+  address     String?
+  logoUrl     String?  @db.VarChar(500)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  locations           Location[]
+  businessMemberships BusinessMembership[]
+  products            Product[]
+  categories          Category[]
+  auditLogs           AuditLog[]
+  suppliers           Supplier[]
+  customers           Customer[]
+}
+
+model BusinessMembership {
+  id         String       @id @default(uuid()) @db.Uuid
+  businessId String       @db.Uuid
+  userId     String       @db.Uuid
+  role       BusinessRole
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime     @updatedAt @db.Timestamptz(6)
+
+  business            Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locationMemberships LocationMembership[]
+
+  @@unique([businessId, userId])
+  @@map("business_memberships")
+}
+
+model Location {
+  id         String       @id @default(uuid()) @db.Uuid
+  businessId String       @db.Uuid
+  name         String       @db.VarChar(255)
+  type         LocationType @default(shop)
+  businessType String?      @map("business_type") @db.VarChar(50)
+  vatRate      Decimal      @default(0) @map("vat_rate") @db.Decimal(5, 2)
+  address      String?
+  phone        String?      @db.VarChar(20)
+  isDefault  Boolean      @default(false)
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime     @updatedAt @db.Timestamptz(6)
+
+  business            Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  locationMemberships LocationMembership[]
+  inventoryBalances   InventoryBalance[]
+  productLocations    ProductLocation[]
+  sales               Sale[]
+  stockMovements      StockMovement[]
+  transfersOut        StockTransfer[]      @relation("TransferSource")
+  transfersIn         StockTransfer[]      @relation("TransferDest")
+  purchases           Purchase[]
+  stocktakes          Stocktake[]
+  goodsReceipts       GoodsReceipt[]
+
+  @@map("locations")
+}
+
+model LocationMembership {
+  id                   String   @id @default(uuid()) @db.Uuid
+  locationId           String   @db.Uuid
+  userId               String   @db.Uuid
+  businessMembershipId String?  @db.Uuid
+  canSell              Boolean  @default(true)
+  canReceiveStock      Boolean  @default(false)
+  canTransferStock     Boolean  @default(false)
+  canViewAnalytics     Boolean  @default(false)
+  createdAt            DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @db.Timestamptz(6)
+
+  location           Location            @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessMembership BusinessMembership? @relation(fields: [businessMembershipId], references: [id], onDelete: SetNull)
+
+  @@unique([locationId, userId])
+  @@map("location_memberships")
+}
+
+model Product {
+  id                String      @id @default(uuid()) @db.Uuid
+  businessId        String      @db.Uuid
+  parentProductId   String?     @db.Uuid
+  name              String      @db.VarChar(255)
+  kind              ProductKind @default(product)
+  hasVariants       Boolean     @default(false)
+  sku               String?     @db.VarChar(100)
+  barcode           String?     @db.VarChar(100)
+  category          String?     @db.VarChar(100)
+  subCategory       String?     @map("sub_category") @db.VarChar(100)
+  description       String?
+  sellingPrice      Decimal     @db.Decimal(15, 2)
+  purchaseCost      Decimal     @db.Decimal(15, 2)
+  baseUnit          String      @default("piece") @db.VarChar(50)
+  imageUrl          String?     @db.VarChar(500)
+  lowStockThreshold Decimal     @default(0) @db.Decimal(15, 4)
+  isActive          Boolean     @default(true)
+  createdAt         DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime    @updatedAt @db.Timestamptz(6)
+
+  business          Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  parent            Product?           @relation("ProductVariants", fields: [parentProductId], references: [id], onDelete: Cascade)
+  variants          Product[]          @relation("ProductVariants")
+  productUnits      ProductUnit[]
+  productLocations  ProductLocation[]
+  inventoryBalances InventoryBalance[]
+  saleItems         SaleItem[]
+  purchaseItems     PurchaseItem[]
+  stockMovements    StockMovement[]
+  stockTransferItems StockTransferItem[]
+  stocktakeLines    StocktakeLine[]
+
+  @@map("products")
+}
+
+model Category {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @db.Uuid
+  parentId   String?  @map("parent_id") @db.Uuid
+  name       String   @db.VarChar(100)
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
+
+  business Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children Category[] @relation("CategoryTree")
+
+  @@index([businessId])
+  @@index([parentId])
+  @@map("categories")
+}
+
+model ProductLocation {
+  productId  String @db.Uuid
+  locationId String @db.Uuid
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([productId, locationId])
+  @@map("product_locations")
+}
+
+model ProductUnit {
+  id               String   @id @default(uuid()) @db.Uuid
+  productId        String   @db.Uuid
+  unitName         String   @db.VarChar(100)
+  conversionFactor Decimal  @db.Decimal(10, 4)
+  sellingPrice     Decimal? @db.Decimal(15, 2)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_units")
+}
+
+model InventoryBalance {
+  id                String   @id @default(uuid()) @db.Uuid
+  productId         String   @db.Uuid
+  locationId        String   @db.Uuid
+  quantity          Decimal  @default(0) @db.Decimal(15, 4)
+  averageCost       Decimal  @default(0) @db.Decimal(15, 4)
+  totalValue        Decimal  @default(0) @db.Decimal(15, 2)
+  lowStockThreshold Decimal? @db.Decimal(15, 4)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(6)
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, locationId])
+  @@map("inventory_balances")
+}
+
+model StockMovement {
+  id            String            @id @default(uuid()) @db.Uuid
+  businessId    String            @db.Uuid
+  locationId    String            @db.Uuid
+  productId     String            @db.Uuid
+  type          StockMovementType
+  quantity      Decimal           @db.Decimal(15, 4)
+  unitCost      Decimal?          @db.Decimal(15, 4)
+  totalCost     Decimal?          @db.Decimal(15, 2)
+  referenceType String?           @db.VarChar(50)
+  referenceId   String?           @db.Uuid
+  reason        String?
+  userId        String            @db.Uuid
+  createdAt     DateTime          @default(now()) @db.Timestamptz(6)
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("stock_movements")
+}
+
+model StockTransfer {
+  id                    String              @id @default(uuid()) @db.Uuid
+  transferNumber        String              @unique @db.VarChar(50)
+  businessId            String              @db.Uuid
+  sourceLocationId      String              @db.Uuid
+  destinationLocationId String              @db.Uuid
+  userId                String              @db.Uuid
+  status                StockTransferStatus @default(completed)
+  notes                 String?
+  createdAt             DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @db.Timestamptz(6)
+
+  sourceLocation      Location            @relation("TransferSource", fields: [sourceLocationId], references: [id])
+  destinationLocation Location            @relation("TransferDest", fields: [destinationLocationId], references: [id])
+  stockTransferItems  StockTransferItem[]
+
+  @@map("stock_transfers")
+}
+
+model StockTransferItem {
+  id               String   @id @default(uuid()) @db.Uuid
+  transferId       String   @db.Uuid
+  productId        String   @db.Uuid
+  productName      String   @db.VarChar(255)
+  quantity         Decimal  @db.Decimal(15, 4)
+  receivedQuantity Decimal  @default(0) @db.Decimal(15, 4)
+  unitCost         Decimal  @db.Decimal(15, 4)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  transfer StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product  Product       @relation(fields: [productId], references: [id])
+
+  @@map("stock_transfer_items")
+}
+
+model Sale {
+  id             String        @id @default(uuid()) @db.Uuid
+  saleNumber     String        @unique @db.VarChar(50)
+  businessId     String        @db.Uuid
+  locationId     String        @db.Uuid
+  userId         String        @db.Uuid
+  source         SaleSource    @default(web)
+  status         SaleStatus    @default(completed)
+  subtotal       Decimal       @db.Decimal(15, 2)
+  discountAmount Decimal       @default(0) @db.Decimal(15, 2)
+  totalAmount    Decimal       @db.Decimal(15, 2)
+  totalCost      Decimal       @db.Decimal(15, 2)
+  grossProfit    Decimal       @db.Decimal(15, 2)
+  paymentStatus  PaymentStatus @default(paid)
+  customerId     String?       @db.Uuid
+  customerName   String?       @db.VarChar(255)
+  notes          String?
+  cancelledAt    DateTime?     @db.Timestamptz(6)
+  cancelReason   String?
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(6)
+
+  location  Location   @relation(fields: [locationId], references: [id])
+  customer  Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  saleItems SaleItem[]
+  payments  Payment[]
+
+  @@index([customerId])
+  @@map("sales")
+}
+
+model SaleItem {
+  id               String   @id @default(uuid()) @db.Uuid
+  saleId           String   @db.Uuid
+  productId        String   @db.Uuid
+  productName      String   @db.VarChar(255)
+  unitName         String   @db.VarChar(100)
+  quantity         Decimal  @db.Decimal(15, 4)
+  unitPrice        Decimal  @db.Decimal(15, 2)
+  discountAmount   Decimal  @default(0) @db.Decimal(15, 2)
+  lineTotal        Decimal  @db.Decimal(15, 2)
+  unitCostSnapshot Decimal  @db.Decimal(15, 4)
+  lineCost         Decimal  @db.Decimal(15, 2)
+  lineProfit       Decimal  @db.Decimal(15, 2)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("sale_items")
+}
+
+model Payment {
+  id        String        @id @default(uuid()) @db.Uuid
+  saleId    String        @db.Uuid
+  amount    Decimal       @db.Decimal(15, 2)
+  method    PaymentMethod @default(cash)
+  reference String?       @db.VarChar(255)
+  paidAt    DateTime      @db.Timestamptz(6)
+  createdAt DateTime      @default(now()) @db.Timestamptz(6)
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Supplier {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @db.Uuid
+  name       String   @db.VarChar(255)
+  phone      String?  @db.VarChar(30)
+  email      String?  @db.VarChar(255)
+  address    String?
+  notes      String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("suppliers")
+}
+
+model Customer {
+  id                 String   @id @default(uuid()) @db.Uuid
+  businessId         String   @db.Uuid
+  name               String   @db.VarChar(255)
+  phone              String?  @db.VarChar(30)
+  email              String?  @db.VarChar(255)
+  address            String?
+  notes              String?
+  creditLimit        Decimal  @default(0) @map("credit_limit") @db.Decimal(15, 2)
+  walletBalance      Decimal  @default(0) @map("wallet_balance") @db.Decimal(15, 2)
+  outstandingBalance Decimal  @default(0) @map("outstanding_balance") @db.Decimal(15, 2)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @db.Timestamptz(6)
+
+  business Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  ledger   CustomerLedger[]
+  sales    Sale[]
+
+  @@index([businessId])
+  @@map("customers")
+}
+
+model CustomerLedger {
+  id         String             @id @default(uuid()) @db.Uuid
+  customerId String             @db.Uuid
+  type       CustomerLedgerType
+  amount     Decimal            @db.Decimal(15, 2)
+  note       String?
+  saleId     String?            @db.Uuid
+  createdAt  DateTime           @default(now()) @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("customer_ledger")
+}
+
+model Purchase {
+  id             String         @id @default(uuid()) @db.Uuid
+  purchaseNumber String         @unique @db.VarChar(50)
+  businessId     String         @db.Uuid
+  locationId     String         @db.Uuid
+  userId         String         @db.Uuid
+  supplierName   String?        @db.VarChar(255)
+  supplierId     String?        @db.Uuid
+  status         PurchaseStatus @default(pending)
+  totalAmount    Decimal        @db.Decimal(15, 2)
+  notes          String?
+  expectedAt     DateTime?      @db.Date
+  createdAt      DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @db.Timestamptz(6)
+
+  location      Location       @relation(fields: [locationId], references: [id])
+  purchaseItems PurchaseItem[]
+  goodsReceipts GoodsReceipt[]
+
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id               String   @id @default(uuid()) @db.Uuid
+  purchaseId       String   @db.Uuid
+  productId        String   @db.Uuid
+  productName      String   @db.VarChar(255)
+  orderedQuantity  Decimal  @db.Decimal(15, 4)
+  receivedQuantity Decimal  @default(0) @db.Decimal(15, 4)
+  unitCost         Decimal  @db.Decimal(15, 4)
+  lineTotal        Decimal  @db.Decimal(15, 2)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
+
+  purchase            Purchase           @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product             Product            @relation(fields: [productId], references: [id])
+  goodsReceiptItems   GoodsReceiptItem[]
+
+  @@map("purchase_items")
+}
+
+model GoodsReceipt {
+  id         String   @id @default(uuid()) @db.Uuid
+  grnNumber  String   @unique @db.VarChar(50)
+  businessId String   @db.Uuid
+  purchaseId String   @db.Uuid
+  locationId String   @db.Uuid
+  userId     String   @db.Uuid
+  notes      String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  purchase Purchase           @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  location Location           @relation(fields: [locationId], references: [id])
+  items    GoodsReceiptItem[]
+
+  @@map("goods_receipts")
+}
+
+model GoodsReceiptItem {
+  id               String  @id @default(uuid()) @db.Uuid
+  goodsReceiptId   String  @db.Uuid
+  purchaseItemId   String  @db.Uuid
+  productName      String  @db.VarChar(255)
+  orderedQuantity  Decimal @db.Decimal(15, 4)
+  receivedQuantity Decimal @db.Decimal(15, 4)
+  varianceQuantity Decimal @default(0) @db.Decimal(15, 4)
+  unitCost         Decimal @db.Decimal(15, 4)
+
+  goodsReceipt GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  purchaseItem PurchaseItem @relation(fields: [purchaseItemId], references: [id])
+
+  @@map("goods_receipt_items")
+}
+
+model Stocktake {
+  id               String          @id @default(uuid()) @db.Uuid
+  stocktakeNumber  String          @unique @db.VarChar(50)
+  businessId       String          @db.Uuid
+  locationId       String          @db.Uuid
+  createdByUserId  String          @db.Uuid
+  approvedByUserId String?         @db.Uuid
+  status           StocktakeStatus @default(draft)
+  notes            String?
+  appliedAt        DateTime?       @db.Timestamptz(6)
+  createdAt        DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime        @updatedAt @db.Timestamptz(6)
+
+  location Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  lines    StocktakeLine[]
+
+  @@map("stocktakes")
+}
+
+model StocktakeLine {
+  id               String   @id @default(uuid()) @db.Uuid
+  stocktakeId      String   @db.Uuid
+  productId        String   @db.Uuid
+  productName      String   @db.VarChar(255)
+  systemQuantity   Decimal  @db.Decimal(15, 4)
+  countedQuantity  Decimal? @db.Decimal(15, 4)
+  varianceQuantity Decimal? @db.Decimal(15, 4)
+
+  stocktake Stocktake @relation(fields: [stocktakeId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@map("stocktake_lines")
+}
+
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  businessId    String   @db.Uuid
+  userId        String?  @db.Uuid
+  action        String   @db.VarChar(100)
+  entityType    String   @db.VarChar(100)
+  entityId      String?  @db.Uuid
+  previousState Json?
+  newState      Json?
+  ipAddress     String?  @db.VarChar(45)
+  userAgent     String?  @db.VarChar(500)
+  metadata      Json?
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
+
+model WhatsappIdentity {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @db.Uuid
+  businessId        String   @db.Uuid
+  whatsappPhone     String   @unique @db.VarChar(30)
+  isVerified        Boolean  @default(false)
+  defaultLocationId String?  @db.Uuid
+  createdAt         DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_identities")
+}
+
+model PendingAction {
+  id             String              @id @default(uuid()) @db.Uuid
+  businessId     String              @db.Uuid
+  userId         String              @db.Uuid
+  whatsappPhone  String              @db.VarChar(30)
+  actionType     PendingActionType
+  payload        Json
+  checksum       String              @db.VarChar(64)
+  status         PendingActionStatus @default(pending)
+  expiresAt      DateTime            @db.Timestamptz(6)
+  confirmedAt    DateTime?           @db.Timestamptz(6)
+  idempotencyKey String?             @unique @db.VarChar(255)
+  createdAt      DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @db.Timestamptz(6)
+
+  @@map("pending_actions")
+}

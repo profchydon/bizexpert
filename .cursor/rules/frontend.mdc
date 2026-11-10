@@ -1,0 +1,35 @@
+---
+alwaysApply: true
+---
+# apps/web (BizExpert Next.js)
+
+Monorepo path: [apps/web](mdc:apps/web/README.md)
+
+## Stack
+
+- **Next.js 16** App Router (`src/app`), **React 19**, **TypeScript**, **Tailwind CSS 4** ([src/styles/globals.css](mdc:apps/web/src/styles/globals.css), [theme.css](mdc:apps/web/src/styles/theme.css), [legacy-bridge.css](mdc:apps/web/src/styles/legacy-bridge.css)).
+- **TanStack Query** + **axios** ([src/lib/api.ts](mdc:apps/web/src/lib/api.ts)); auth/business context in [src/store](mdc:apps/web/src/store).
+- **UI:** Untitled UI `base/` + `application/`, shadcn `ui/`, `cx()` from [src/utils/cx.ts](mdc:apps/web/src/utils/cx.ts), `cn()` from [src/lib/utils.ts](mdc:apps/web/src/lib/utils.ts).
+- **Providers:** [src/lib/providers.tsx](mdc:apps/web/src/lib/providers.tsx) (Query, Auth, React Aria router, theme).
+
+## Top-level layout (`src/`)
+
+| Area | Role |
+|------|------|
+| [src/app/(auth)](mdc:apps/web/src/app/(auth)) | Login, register |
+| [src/app/(dashboard)](mdc:apps/web/src/app/(dashboard)) | Overview, locations, products, inventory, sales, purchases, team, settings |
+| [src/app/design-system](mdc:apps/web/src/app/design-system) | Design system catalog |
+| [src/components/dashboard](mdc:apps/web/src/components/dashboard) | Page headers, tables, forms, nav, slideout create flows |
+| [src/components/base](mdc:apps/web/src/components/base) | Untitled UI primitives |
+| [src/components/application](mdc:apps/web/src/components/application) | Slideouts, tables, date pickers, empty states |
+| [src/components/ui](mdc:apps/web/src/components/ui) | shadcn/ui |
+| [src/hooks](mdc:apps/web/src/hooks) | Shared hooks (`useTransitionRouter`, slideout resize) |
+| [src/lib](mdc:apps/web/src/lib) | API, auth helpers, format, providers |
+| [src/styles](mdc:apps/web/src/styles) | Tokens and global CSS |
+
+## Conventions
+
+- Thin `page.tsx`; feature logic in dashboard components or colocated hooks under route folders (e.g. inventory).
+- Add/Create flows use **right slideouts** (`FormSlideoutShell`, `SlideoutMenu`), not full-page `/new` routes (`?create=1` deep links).
+- Navigation from buttons: [useTransitionRouter](mdc:apps/web/src/hooks/useTransitionRouter.ts) + `Button` `isLoading`.
+- Dev server: port **3000** (`npm run dev` in workspace `@bizexpert/web`).
