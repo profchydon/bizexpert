@@ -38,10 +38,10 @@ npm run db:seed
 npm run dev
 ```
 
-- Web (main): http://localhost:3000 — set `NEXT_PUBLIC_PRODUCT=bizexpert` and `NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1` in `apps/main/.env`  
+- Web (main): http://localhost:3000 — set `NEXT_PUBLIC_PRODUCT=bizexpert` and `NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1` in `apps/main/.env`
 
-- API: http://localhost:3001/api/v1  
-- Swagger: http://localhost:3001/api/v1/docs  
+- API: http://localhost:3001/api/v1
+- Swagger: http://localhost:3001/api/v1/docs
 
 See [apps/web/CHANGELOG.md](apps/web/CHANGELOG.md) for web UI history.
 
@@ -52,16 +52,18 @@ See [apps/web/CHANGELOG.md](apps/web/CHANGELOG.md) for web UI history.
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start API + web (Turbo) |
-| `npm run build` | Production build |
-| `npm run db:migrate` | Apply Prisma migrations (`prisma migrate deploy`) |
+| Command                  | Description                                           |
+| ------------------------ | ----------------------------------------------------- |
+| `npm run dev`            | Start API + web (Turbo)                               |
+| `npm run build`          | Production build                                      |
+| `npm run db:migrate`     | Apply Prisma migrations (`prisma migrate deploy`)     |
 | `npm run db:migrate:dev` | Create/apply migrations in dev (`prisma migrate dev`) |
-| `npm run db:seed` | Load demo data |
-| `npm run test` | Run tests |
+| `npm run db:seed`        | Load demo data                                        |
+| `npm run test`           | Run tests                                             |
 
 ## WhatsApp webhook (live)
+
+Full Meta Cloud API setup (env, webhook, dashboard link, VERIFY): [docs/whatsapp-setup.md](docs/whatsapp-setup.md). Twilio WhatsApp Flows (agreed next channel): [docs/whatsapp-twilio-setup.md](docs/whatsapp-twilio-setup.md).
 
 1. Set `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` in `apps/api/.env`.
 2. Expose `https://<your-host>/api/v1/whatsapp/webhook` (HTTPS required by Meta).

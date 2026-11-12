@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { BullModule } from "@nestjs/bull";
 import { ScheduleModule } from "@nestjs/schedule";
 
+import { redisConnectionOptions } from "./common/redis.util";
 import { PrismaModule } from "./prisma/prisma.module";
 
 // Feature modules
@@ -41,12 +42,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        redis: {
-          host: config.get<string>("REDIS_HOST", "localhost"),
-          port: config.get<number>("REDIS_PORT", 6379),
-          password: config.get<string>("REDIS_PASSWORD"),
-          tls: config.get<string>("NODE_ENV") === "production" ? {} : undefined,
-        },
+        redis: redisConnectionOptions(config),
         defaultJobOptions: {
           attempts: 3,
           backoff: {
