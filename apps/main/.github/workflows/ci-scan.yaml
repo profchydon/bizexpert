@@ -1,0 +1,561 @@
+# name: CI/Scans Pipeline
+# on:
+#   pull_request:
+#     branches:
+#       - develop
+
+# jobs:
+#   build-and-scan:
+#     runs-on: ubuntu-latest
+#     permissions:
+#       contents: read
+#       security-events: write # Required for CodeQL to upload results
+#       pull-requests: write # Required for posting comments on PR
+#       actions: read # Required for CodeQL to access workflow run information
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0 # Fixes shallow clone warning - fetches full git history
+#           token: ${{ secrets.GITHUB_TOKEN }} # Ensures proper access for blame information
+
+#       - name: Set up Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: "22"
+
+#       - name: Install dependencies
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.ENV_GITHUB_TOKEN }}
+#         run: npm install --legacy-peer-deps
+
+#       # --- Code Quality Checks ---
+#       - name: Check If Code Builds
+#         id: code_build
+#         continue-on-error: true
+#         run: |
+#           # Build code and capture both output and exit code
+#           set +e  # Don't exit on error
+#           npm run build > code_output.txt 2>&1
+#           BUILD_EXIT_CODE=$?
+#           set -e  # Re-enable exit on error
+
+#           # Check the actual exit code, not the tee command
+#           if [ $BUILD_EXIT_CODE -eq 0 ]; then
+#             echo "✅ Code Built successfully"
+#             echo "code_status=passed" >> $GITHUB_OUTPUT
+#             echo "✅ Code Built successfully" > code_result.txt
+#             echo "" >> code_result.txt
+#             cat code_output.txt >> code_result.txt
+#           else
+#             echo "❌ Code has build issues"
+#             echo "code_status=failed" >> $GITHUB_OUTPUT
+#             echo "❌ Code has build issues:" > code_result.txt
+#             echo "" >> code_result.txt
+#             cat code_output.txt >> code_result.txt
+#           fi
+
+#       - name: Lint with ESLint
+#         id: eslint_lint
+#         continue-on-error: true
+#         run: |
+#           # Run eslint and capture both output and exit code
+#           set +e  # Don't exit on error
+#           npm run lint > eslint_output.txt 2>&1
+#           ESLINT_EXIT_CODE=$?
+#           set -e  # Re-enable exit on error
+
+#           # Check the actual exit code, not the tee command
+#           if [ $ESLINT_EXIT_CODE -eq 0 ]; then
+#             echo "✅ ESLint passed successfully"
+#             echo "eslint_status=passed" >> $GITHUB_OUTPUT
+#             echo "✅ ESLint passed successfully" > eslint_result.txt
+#             echo "" >> eslint_result.txt
+#             cat eslint_output.txt >> eslint_result.txt
+#           else
+#             echo "❌ ESLint found linting issues"
+#             echo "eslint_status=failed" >> $GITHUB_OUTPUT
+#             echo "❌ ESLint found linting issues:" > eslint_result.txt
+#             echo "" >> eslint_result.txt
+#             cat eslint_output.txt >> eslint_result.txt
+#           fi
+
+#       - name: Check formatting with Prettier
+#         id: prettier_format
+#         continue-on-error: true
+#         run: |
+#           # Run prettier and capture both output and exit code
+#           set +e  # Don't exit on error
+#           npm run format:check > prettier_output.txt 2>&1
+#           PRETTIER_EXIT_CODE=$?
+#           set -e  # Re-enable exit on error
+
+#           # Check the actual exit code
+#           if [ $PRETTIER_EXIT_CODE -eq 0 ]; then
+#             echo "✅ Prettier formatting check passed successfully"
+#             echo "prettier_status=passed" >> $GITHUB_OUTPUT
+#             echo "✅ Prettier formatting check passed successfully" > prettier_result.txt
+#             echo "" >> prettier_result.txt
+#             cat prettier_output.txt >> prettier_result.txt
+#           else
+#             echo "❌ Prettier formatting issues found"
+#             echo "prettier_status=failed" >> $GITHUB_OUTPUT
+#             echo "❌ Prettier formatting issues found. Run 'prettier .' to fix:" > prettier_result.txt
+#             echo "" >> prettier_result.txt
+#             cat prettier_output.txt >> prettier_result.txt
+#           fi
+
+#       # # --- Run Tests ---
+#       # - name: Run E2E Test
+#       #   id: jest_tests
+#       #   continue-on-error: true
+#       #   run: |
+#       #     # Run jest and capture both output and exit code
+#       #     # Cleanup
+#       #     rm -f jest_output.txt jest_result.txt coverage/lcov.info
+#       #     set +e  # Don't exit on error
+
+#       #     npm run test:e2e:cov > jest_output_raw.txt 2>&1
+#       #     JEST_EXIT_CODE=$?
+
+#       #     # Clean ANSI escape sequences from output
+#       #     sed 's/\x1b\[[0-9;]*m//g' jest_output_raw.txt > jest_output.txt
+
+#       #     set -e  # Re-enable exit on error
+
+#       #     # Check the actual exit code
+#       #     if [ $JEST_EXIT_CODE -eq 0 ]; then
+#       #       echo "✅ All tests passed successfully!"
+#       #       echo "jest_status=passed" >> $GITHUB_OUTPUT
+#       #       echo "✅ All tests passed successfully!" > jest_result.txt
+#       #       echo "" >> jest_result.txt
+
+#       #       # Include the full output (test results + coverage summary)
+#       #       cat jest_output.txt >> jest_result.txt
+#       #     else
+#       #       echo "❌ Some tests failed"
+#       #       echo "jest_status=failed" >> $GITHUB_OUTPUT
+#       #       echo "❌ Some tests failed:" > jest_result.txt
+#       #       echo "" >> jest_result.txt
+#       #       cat jest_output.txt >> jest_result.txt
+#       #     fi
+
+#       #     # Check if LCOV report was generated for SonarQube
+#       #     if [ -f "coverage/lcov.info" ]; then
+#       #       echo "✅ LCOV coverage report generated for SonarQube: coverage/lcov.info"
+#       #     else
+#       #       echo "⚠️ LCOV coverage report not found at coverage/lcov.info"
+#       #     fi
+
+#       # --- Run Sonarqube Analysis ---
+#       - name: Run Sonarqube Scan
+#         id: sonar_scan
+#         continue-on-error: true
+#         uses: sonarsource/sonarqube-scan-action@master
+#         env:
+#           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+#           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+#       # --- Process SonarQube Results  ---
+#       - name: Process SonarQube Results
+#         id: process_sonarqube
+#         if: always()
+#         continue-on-error: true
+#         run: |
+#           echo "Processing SonarQube results..."
+
+#           # Initialize status as unknown
+#           echo "sonar_status=unknown" >> $GITHUB_OUTPUT
+#           echo "sonar_coverage=N/A" >> $GITHUB_OUTPUT
+#           echo "sonar_bugs=N/A" >> $GITHUB_OUTPUT
+#           echo "sonar_code_smells=N/A" >> $GITHUB_OUTPUT
+#           echo "sonar_security_hotspots=N/A" >> $GITHUB_OUTPUT
+#           echo "sonar_vulnerabilities=N/A" >> $GITHUB_OUTPUT
+#           echo "sonar_quality_gate=N/A" >> $GITHUB_OUTPUT
+
+#           # Check if scanner work directory exists
+#           if [ -f ".scannerwork/report-task.txt" ]; then
+#             echo "✅ SonarQube report found, extracting information..."
+
+#             # Extract task ID and server URL from report
+#             TASK_ID=$(grep "ceTaskId=" .scannerwork/report-task.txt | cut -d'=' -f2)
+#             SERVER_URL=$(grep "serverUrl=" .scannerwork/report-task.txt | cut -d'=' -f2)
+
+#             echo "Task ID: $TASK_ID"
+#             echo "Server URL: $SERVER_URL"
+
+#             # Build proper dashboard URL using project key
+#             PROJECT_KEY="${{ secrets.SONAR_PROJECT_KEY }}"
+#             DASHBOARD_URL="${SERVER_URL}/dashboard?id=${PROJECT_KEY}"
+
+#             echo "Dashboard URL: $DASHBOARD_URL"
+
+#             # Store dashboard URL for comment
+#             echo "sonar_dashboard_url=$DASHBOARD_URL" >> $GITHUB_OUTPUT
+
+#             # Wait a bit for SonarQube to process (alternative to quality gate action)
+#             for i in {1..20}; do
+#               STATUS=$(curl -s -H "Authorization: Basic $(printf '%s:' "${{ secrets.SONAR_TOKEN }}" | base64)" \
+#                 "$SERVER_URL/api/ce/task?id=$TASK_ID" | jq -r '.task.status')
+#               [ "$STATUS" = "SUCCESS" ] && break
+#               sleep 5
+#             done
+
+#             # Try to get analysis results via SonarQube Web API
+#             if command -v curl >/dev/null 2>&1; then
+#               echo "Fetching project measures from SonarQube API..."
+
+#               # Fetch coverage
+#               COVERAGE_RESPONSE=$(curl -s -H "Authorization: Basic $(printf '%s:' "${{ secrets.SONAR_TOKEN }}" | base64)" \
+#                 "$SERVER_URL/api/measures/component?component=$PROJECT_KEY&metricKeys=coverage" 2>/dev/null || echo "")
+
+#               echo "Coverage API Response: $COVERAGE_RESPONSE"
+
+#               if echo "$COVERAGE_RESPONSE" | grep -q '"value"'; then
+#                 COVERAGE=$(echo "$COVERAGE_RESPONSE" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p' | head -1)
+#                 if [ "$COVERAGE" != "" ]; then
+#                   echo "sonar_coverage=${COVERAGE}%" >> $GITHUB_OUTPUT
+#                 else
+#                   echo "sonar_coverage=0.0%" >> $GITHUB_OUTPUT
+#                 fi
+#               else
+#                 echo "sonar_coverage=N/A" >> $GITHUB_OUTPUT
+#               fi
+
+#               # Fetch each metric individually for accurate parsing
+#               echo "Fetching individual metrics..."
+
+#               # Fetch bugs
+#               BUGS_RESPONSE=$(curl -s -H "Authorization: Basic $(printf '%s:' "${{ secrets.SONAR_TOKEN }}" | base64)" \
+#                 "$SERVER_URL/api/measures/component?component=$PROJECT_KEY&metricKeys=bugs" 2>/dev/null || echo "")
+#               echo "Bugs API Response: $BUGS_RESPONSE"
+
+#               if echo "$BUGS_RESPONSE" | grep -q '"value"'; then
+#                 BUGS=$(echo "$BUGS_RESPONSE" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p' | head -1)
+#                 if [ "$BUGS" != "" ]; then
+#                   echo "sonar_bugs=$BUGS" >> $GITHUB_OUTPUT
+#                 fi
+#               else
+#                 echo "sonar_bugs=0" >> $GITHUB_OUTPUT
+#                 BUGS="0"
+#               fi
+
+#               # Fetch code smells
+#               CODE_SMELLS_RESPONSE=$(curl -s -H "Authorization: Basic $(printf '%s:' "${{ secrets.SONAR_TOKEN }}" | base64)" \
+#                 "$SERVER_URL/api/measures/component?component=$PROJECT_KEY&metricKeys=code_smells" 2>/dev/null || echo "")
+#               echo "Code Smells API Response: $CODE_SMELLS_RESPONSE"
+
+#               if echo "$CODE_SMELLS_RESPONSE" | grep -q '"value"'; then
+#                 CODE_SMELLS=$(echo "$CODE_SMELLS_RESPONSE" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p' | head -1)
+#                 if [ "$CODE_SMELLS" != "" ]; then
+#                   echo "sonar_code_smells=$CODE_SMELLS" >> $GITHUB_OUTPUT
+#                 fi
+#               else
+#                 echo "sonar_code_smells=0" >> $GITHUB_OUTPUT
+#                 CODE_SMELLS="0"
+#               fi
+
+#               # Fetch vulnerabilities
+#               VULNERABILITIES_RESPONSE=$(curl -s -H "Authorization: Basic $(printf '%s:' "${{ secrets.SONAR_TOKEN }}" | base64)" \
+#                 "$SERVER_URL/api/measures/component?component=$PROJECT_KEY&metricKeys=vulnerabilities" 2>/dev/null || echo "")
+#               echo "Vulnerabilities API Response: $VULNERABILITIES_RESPONSE"
+
+#               if echo "$VULNERABILITIES_RESPONSE" | grep -q '"value"'; then
+#                 VULNERABILITIES=$(echo "$VULNERABILITIES_RESPONSE" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p' | head -1)
+#                 if [ "$VULNERABILITIES" != "" ]; then
+#                   echo "sonar_vulnerabilities=$VULNERABILITIES" >> $GITHUB_OUTPUT
+#                 fi
+#               else
+#                 echo "sonar_vulnerabilities=0" >> $GITHUB_OUTPUT
+#                 VULNERABILITIES="0"
+#               fi
+
+#               # Fetch security hotspots
+#               SECURITY_HOTSPOTS_RESPONSE=$(curl -s -H "Authorization: Basic $(printf '%s:' "${{ secrets.SONAR_TOKEN }}" | base64)" \
+#                 "$SERVER_URL/api/measures/component?component=$PROJECT_KEY&metricKeys=security_hotspots" 2>/dev/null || echo "")
+#               echo "Security Hotspots API Response: $SECURITY_HOTSPOTS_RESPONSE"
+
+#               if echo "$SECURITY_HOTSPOTS_RESPONSE" | grep -q '"value"'; then
+#                 SECURITY_HOTSPOTS=$(echo "$SECURITY_HOTSPOTS_RESPONSE" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p' | head -1)
+#                 if [ "$SECURITY_HOTSPOTS" != "" ]; then
+#                   echo "sonar_security_hotspots=$SECURITY_HOTSPOTS" >> $GITHUB_OUTPUT
+#                 fi
+#               else
+#                 echo "sonar_security_hotspots=0" >> $GITHUB_OUTPUT
+#                 SECURITY_HOTSPOTS="0"
+#               fi
+
+#               # Get Quality Gate status
+#               QG_RESPONSE=$(curl -s -H "Authorization: Basic $(printf '%s:' "${{ secrets.SONAR_TOKEN }}" | base64)" \
+#                 "$SERVER_URL/api/qualitygates/project_status?projectKey=$PROJECT_KEY" 2>/dev/null || echo "")
+
+#               echo "Quality Gate API Response: $QG_RESPONSE"
+
+#               if echo "$QG_RESPONSE" | grep -q '"status"'; then
+#                 QG_STATUS=$(echo "$QG_RESPONSE" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p' | head -1)
+#                 echo "sonar_quality_gate=$QG_STATUS" >> $GITHUB_OUTPUT
+
+#                 if [ "$QG_STATUS" = "OK" ]; then
+#                   echo "sonar_status=passed" >> $GITHUB_OUTPUT
+#                 elif [ "$QG_STATUS" = "ERROR" ]; then
+#                   echo "sonar_status=failed" >> $GITHUB_OUTPUT
+#                 else
+#                   echo "sonar_status=warning" >> $GITHUB_OUTPUT
+#                 fi
+#               else
+#                 echo "sonar_status=unknown" >> $GITHUB_OUTPUT
+#               fi
+
+#               # Get actual values for the summary (now using individual variables)
+#               ACTUAL_COVERAGE=$(echo "$COVERAGE_RESPONSE" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p' | head -1)
+
+#               # Add summary to result file
+#               echo "" >> sonar_result.txt
+#               echo "📊 Analysis Summary:" >> sonar_result.txt
+#               echo "" >> sonar_result.txt
+#               echo "| Metric | Value |" >> sonar_result.txt
+#               echo "|--------|-------|" >> sonar_result.txt
+#               echo "| 📊 Coverage | ${ACTUAL_COVERAGE:-N/A}% |" >> sonar_result.txt
+#               echo "| 🐛 Bugs | ${BUGS:-0} |" >> sonar_result.txt
+#               echo "| 💻 Code Smells | ${CODE_SMELLS:-0} |" >> sonar_result.txt
+#               echo "| 🔓 Vulnerabilities | ${VULNERABILITIES:-0} |" >> sonar_result.txt
+#               echo "| 🔥 Security Hotspots | ${SECURITY_HOTSPOTS:-0} |" >> sonar_result.txt
+#               echo "" >> sonar_result.txt
+#               echo "🔍 [View Full Analysis in SonarQube]($DASHBOARD_URL)" >> sonar_result.txt
+
+#             else
+#               echo "⚠️ curl not available for API calls"
+#               echo "sonar_status=unknown" >> $GITHUB_OUTPUT
+#               echo "⚠️ SonarQube analysis completed but could not fetch detailed results" > sonar_result.txt
+#               echo "🔍 View full report: $DASHBOARD_URL" >> sonar_result.txt
+#             fi
+
+#           else
+#             echo "❌ SonarQube report not found at .scannerwork/report-task.txt"
+#             echo "sonar_status=failed" >> $GITHUB_OUTPUT
+#             echo "❌ SonarQube analysis failed or report not generated" > sonar_result.txt
+#             echo "Check the SonarQube scan step for errors." >> sonar_result.txt
+#           fi
+
+#       # --- Create PR Comment with Results ---
+#       - name: Create PR Comment
+#         if: always()
+#         run: |
+#           cat > pr_comment.md << 'EOF'
+#           ## CI/Scans Pipeline Results 🚀
+
+#           EOF
+
+#           # Track failures and warnings separately
+#           HAS_FAILURES=false
+#           HAS_WARNINGS=false
+#           FAILED_CHECKS=""
+#           WARNING_CHECKS=""
+
+#           # Code_Build Results
+#           echo "### 🛠️ Code Build Check" >> pr_comment.md
+#           if [ "${{ steps.code_build.outputs.code_status }}" == "passed" ]; then
+#             echo "✅ **Passed** - No Code Build issues found" >> pr_comment.md
+#           else
+#             echo "❌ **Failed** - Code Build issues detected" >> pr_comment.md
+#             FAILED_CHECKS+="Code_Build, "
+#             HAS_FAILURES=true
+#           fi
+#           echo "" >> pr_comment.md
+#           echo "<details><summary>📄 View Details</summary>" >> pr_comment.md
+#           echo "" >> pr_comment.md
+#           echo '```' >> pr_comment.md
+#           cat code_result.txt >> pr_comment.md
+#           echo '```' >> pr_comment.md
+#           echo "</details>" >> pr_comment.md
+#           echo "" >> pr_comment.md
+
+#           # ESLint Results
+#           echo "### 🔍 ESLint Linting" >> pr_comment.md
+#           if [ "${{ steps.eslint_lint.outputs.eslint_status }}" == "passed" ]; then
+#             echo "✅ **Passed** - No critical linting issues found" >> pr_comment.md
+#           else
+#             echo "❌ **Failed** - Linting issues detected" >> pr_comment.md
+#             FAILED_CHECKS+="ESLint, "
+#             HAS_FAILURES=true
+#           fi
+#           echo "" >> pr_comment.md
+#           echo "<details><summary>📄 View Details</summary>" >> pr_comment.md
+#           echo "" >> pr_comment.md
+#           echo '```' >> pr_comment.md
+#           cat eslint_result.txt >> pr_comment.md
+#           echo '```' >> pr_comment.md
+#           echo "</details>" >> pr_comment.md
+#           echo "" >> pr_comment.md
+
+#           # Prettier Results
+#           echo "### 💅 Prettier Formatting" >> pr_comment.md
+#           if [ "${{ steps.prettier_format.outputs.prettier_status }}" == "passed" ]; then
+#             echo "✅ **Passed** - Code formatting is correct" >> pr_comment.md
+#           else
+#             echo "❌ **Failed** - Code formatting issues found" >> pr_comment.md
+#             FAILED_CHECKS+="Prettier, "
+#             HAS_FAILURES=true
+#           fi
+#           echo "" >> pr_comment.md
+#           echo "<details><summary>📄 View Details</summary>" >> pr_comment.md
+#           echo "" >> pr_comment.md
+#           echo '```diff' >> pr_comment.md
+#           cat prettier_result.txt >> pr_comment.md
+#           echo '```' >> pr_comment.md
+#           echo "</details>" >> pr_comment.md
+#           echo "" >> pr_comment.md
+
+#           # # E2E Results
+#           # echo "### 🧪 E2E Tests" >> pr_comment.md
+#           # if [ "${{ steps.jest_tests.outputs.jest_status }}" == "passed" ]; then
+#           #   echo "✅ **Passed** - All tests are passing" >> pr_comment.md
+#           # else
+#           #   echo "❌ **Failed** - Some tests are failing" >> pr_comment.md
+#           #   FAILED_CHECKS+="Tests, "
+#           #   HAS_FAILURES=true
+#           # fi
+#           # echo "" >> pr_comment.md
+#           # echo "<details><summary>📄 View Details</summary>" >> pr_comment.md
+#           # echo "" >> pr_comment.md
+#           # echo '```' >> pr_comment.md
+#           # cat jest_result.txt >> pr_comment.md
+#           # echo '```' >> pr_comment.md
+#           # echo "</details>" >> pr_comment.md
+#           # echo "" >> pr_comment.md
+
+#           # SonarQube Results
+#           echo "### 🔍 SonarQube Analysis" >> pr_comment.md
+#           if [ "${{ steps.process_sonarqube.outputs.sonar_status }}" == "passed" ]; then
+#             echo "✅ **SonarQube Quality Gate: PASSED**" >> pr_comment.md
+#           elif [ "${{ steps.process_sonarqube.outputs.sonar_status }}" == "failed" ]; then
+#             echo "❌ **SonarQube Quality Gate: FAILED**" >> pr_comment.md
+#             FAILED_CHECKS+="SonarQube, "
+#             HAS_FAILURES=true
+#           elif [ "${{ steps.process_sonarqube.outputs.sonar_status }}" == "warning" ]; then
+#             echo "⚠️ **SonarQube Quality Gate: WARNING**" >> pr_comment.md
+#             WARNING_CHECKS+="SonarQube, "
+#             HAS_WARNINGS=true
+#           else
+#             echo "⚠️ **Status: UNKNOWN** - Could not determine quality gate status" >> pr_comment.md
+#             WARNING_CHECKS+="SonarQube (Unknown), "
+#             HAS_WARNINGS=true
+#           fi
+
+#           echo "" >> pr_comment.md
+#           echo "<details><summary>📄 View Details</summary>" >> pr_comment.md
+#           echo "" >> pr_comment.md
+#           cat sonar_result.txt >> pr_comment.md
+#           echo "</details>" >> pr_comment.md
+#           echo "" >> pr_comment.md
+
+#           # Determine overall status based on failures and warnings
+#           if [ "$HAS_FAILURES" == "true" ]; then
+#             OVERALL_STATUS="❌ Failed"
+#             PIPELINE_STATUS="FAILED"
+#           elif [ "$HAS_WARNINGS" == "true" ]; then
+#             OVERALL_STATUS="⚠️ Warning"
+#             PIPELINE_STATUS="WARNING"
+#           else
+#             OVERALL_STATUS="✅ Success"
+#             PIPELINE_STATUS="SUCCESS"
+#           fi
+
+#           # Overall Status
+#           echo "---" >> pr_comment.md
+#           echo "" >> pr_comment.md
+#           echo "## 📊 Overall Pipeline Status" >> pr_comment.md
+#           echo "**Status:** $OVERALL_STATUS" >> pr_comment.md
+#           echo "" >> pr_comment.md
+
+#           if [ "$HAS_FAILURES" == "true" ]; then
+#             FAILED_CHECKS=${FAILED_CHECKS%, }
+#             echo "**Failed Checks:** $FAILED_CHECKS" >> pr_comment.md
+#             echo "" >> pr_comment.md
+
+#             if [ "$HAS_WARNINGS" == "true" ]; then
+#               WARNING_CHECKS=${WARNING_CHECKS%, }
+#               echo "**Warnings:** $WARNING_CHECKS" >> pr_comment.md
+#               echo "" >> pr_comment.md
+#             fi
+
+#             echo "### 🔧 Quick Fix Commands" >> pr_comment.md
+#             echo '```bash' >> pr_comment.md
+#             echo "# Fix formatting issues" >> pr_comment.md
+#             echo "npm run format" >> pr_comment.md
+#             echo "" >> pr_comment.md
+#             # echo "# Run tests locally" >> pr_comment.md
+#             # echo "npm run test:e2e" >> pr_comment.md
+#             # echo "" >> pr_comment.md
+#             echo "# Check linting" >> pr_comment.md
+#             echo "npm run lint" >> pr_comment.md
+#             echo "" >> pr_comment.md
+#             echo "# Check Sonarqube" >> pr_comment.md
+#             echo "Download Sonarqube lint in your IDE" >> pr_comment.md
+#             echo '```' >> pr_comment.md
+#           elif [ "$HAS_WARNINGS" == "true" ]; then
+#             WARNING_CHECKS=${WARNING_CHECKS%, }
+#             echo "**Warnings:** $WARNING_CHECKS" >> pr_comment.md
+#             echo "" >> pr_comment.md
+#             echo "⚠️ This PR has warnings but can proceed with review. Consider addressing the low/medium severity vulnerabilities when possible." >> pr_comment.md
+#           else
+#             echo "🎉 **All checks passed!** This PR is ready for review." >> pr_comment.md
+#           fi
+
+#           echo "" >> pr_comment.md
+#           echo "*Generated by CI/Scans Pipeline - $(date)*" >> pr_comment.md
+
+#           # Store status for final step
+#           echo "PIPELINE_STATUS=$PIPELINE_STATUS" >> $GITHUB_ENV
+
+#       # --- Post PR Comment ---
+#       - name: Post PR Comment
+#         if: always()
+#         uses: actions/github-script@v7
+#         with:
+#           script: |
+#             const fs = require('fs');
+#             const comment = fs.readFileSync('pr_comment.md', 'utf8');
+
+#             const { data: comments } = await github.rest.issues.listComments({
+#               owner: context.repo.owner,
+#               repo: context.repo.repo,
+#               issue_number: context.issue.number,
+#             });
+
+#             const botComment = comments.find(comment =>
+#               comment.user.type === 'Bot' &&
+#               comment.body.includes('CI/Scans Pipeline Results')
+#             );
+
+#             if (botComment) {
+#               await github.rest.issues.updateComment({
+#                 owner: context.repo.owner,
+#                 repo: context.repo.repo,
+#                 comment_id: botComment.id,
+#                 body: comment
+#               });
+#             } else {
+#               await github.rest.issues.createComment({
+#                 owner: context.repo.owner,
+#                 repo: context.repo.repo,
+#                 issue_number: context.issue.number,
+#                 body: comment
+#               });
+#             }
+
+#       # --- Final Status Check ---
+#       - name: Final Status Check
+#         if: always()
+#         run: |
+#           if [ "$PIPELINE_STATUS" == "FAILED" ]; then
+#             echo "Pipeline failed - one or more critical checks failed"
+#             exit 1
+#           elif [ "$PIPELINE_STATUS" == "WARNING" ]; then
+#             echo "Pipeline completed with warnings - review recommended but not blocking"
+#             exit 0
+#           else
+#             echo "Pipeline passed - all checks successful"
+#             exit 0
+#           fi

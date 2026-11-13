@@ -1,0 +1,1 @@
+export const EQUIPMENT_API_PAGE_SIZE = 15;

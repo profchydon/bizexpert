@@ -1,0 +1,16 @@
+---
+description: Reference source design repo for Catalogue Policy UI work
+globs: src/container/Dashboard/CatalogPolicies/**/*,src/app/dashboard/catalog-policies/**/*
+alwaysApply: false
+---
+# Catalogue Policy Design Reference
+
+When implementing or adjusting Catalogue Policy UI, first reference:
+
+`/Users/blkgodh/Desktop/Rayda/design-ui/src/containers/RaydaRemote/CatalogPolicy`
+
+Also check related rule-detail designs in:
+
+`/Users/blkgodh/Desktop/Rayda/design-ui/src/containers/RaydaRemote/CatalogRuleDetail`
+
+Match the source design for layout, sizing, spacing, typography, icons, modals, drawers, tables, badges, empty states, and actions before adapting to this app's local components.

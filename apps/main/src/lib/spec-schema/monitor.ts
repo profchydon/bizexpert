@@ -1,0 +1,155 @@
+import type { SpecSchemaEntry } from "./types";
+
+export const monitorSchema: SpecSchemaEntry = {
+  assetTypeId: "monitor",
+  label: "Monitor",
+  sections: [
+    {
+      id: "panel",
+      title: "Panel & Display",
+      fields: [
+        {
+          id: "screen_size_in",
+          label: "Screen Size",
+          unit: "inches",
+          kind: "select",
+          requiredForVendor: true,
+          allowOther: true,
+          options: [
+            "21.5",
+            "23.8",
+            "24",
+            "27",
+            "28",
+            "32",
+            "34",
+            "38",
+            "43",
+            "49",
+          ].map((v) => ({ id: v, label: `${v}"` })),
+        },
+        {
+          id: "resolution",
+          label: "Resolution",
+          kind: "select",
+          requiredForVendor: true,
+          options: [
+            { id: "fhd", label: "FHD (1080p)" },
+            { id: "qhd", label: "QHD (1440p)" },
+            { id: "uhd4k", label: "4K UHD" },
+            { id: "5k", label: "5K" },
+            { id: "8k", label: "8K" },
+            { id: "uw_fhd", label: "Ultrawide FHD" },
+            { id: "uw_qhd", label: "Ultrawide QHD" },
+          ],
+        },
+        {
+          id: "panel_type",
+          label: "Panel Type",
+          kind: "select",
+          requiredForVendor: true,
+          options: [
+            { id: "ips", label: "IPS" },
+            { id: "tn", label: "TN" },
+            { id: "va", label: "VA" },
+            { id: "oled", label: "OLED" },
+            { id: "mini_led", label: "Mini-LED" },
+            { id: "quantum_dot", label: "Quantum Dot" },
+          ],
+        },
+        {
+          id: "refresh_rate_hz",
+          label: "Refresh Rate",
+          unit: "Hz",
+          kind: "select",
+          requiredForVendor: true,
+          options: ["60", "75", "100", "120", "144", "165", "240", "360"].map(
+            (v) => ({ id: v, label: `${v} Hz` }),
+          ),
+        },
+        {
+          id: "hdr_support",
+          label: "HDR Support",
+          kind: "select",
+          options: [
+            { id: "none", label: "None" },
+            { id: "hdr10", label: "HDR10" },
+            { id: "hdr400", label: "HDR400" },
+            { id: "hdr600", label: "HDR600" },
+            { id: "hdr1000", label: "HDR1000" },
+            { id: "dolby_vision", label: "Dolby Vision" },
+          ],
+        },
+        {
+          id: "curvature",
+          label: "Curvature",
+          kind: "select",
+          options: [
+            { id: "flat", label: "Flat" },
+            { id: "1000r", label: "1000R" },
+            { id: "1500r", label: "1500R" },
+            { id: "1800r", label: "1800R" },
+            { id: "1900r", label: "1900R" },
+          ],
+        },
+        {
+          id: "touch",
+          label: "Touchscreen",
+          kind: "select",
+          options: [
+            { id: "yes", label: "Yes" },
+            { id: "no", label: "No" },
+          ],
+        },
+      ],
+    },
+    {
+      id: "connectivity",
+      title: "Ports & Mounting",
+      fields: [
+        {
+          id: "hdmi_ports",
+          label: "HDMI Ports",
+          kind: "select",
+          requiredForVendor: true,
+          options: ["0", "1", "2", "3"].map((v) => ({ id: v, label: v })),
+        },
+        {
+          id: "display_port",
+          label: "DisplayPort",
+          kind: "select",
+          options: [
+            { id: "none", label: "None" },
+            { id: "1", label: "1" },
+            { id: "2", label: "2" },
+          ],
+        },
+        {
+          id: "usb_c_thunderbolt",
+          label: "USB-C / Thunderbolt",
+          kind: "select",
+          requiredForVendor: true,
+          options: [
+            { id: "none", label: "None" },
+            { id: "usb_c_video", label: "USB-C (Video only)" },
+            { id: "usb_c_video_data", label: "USB-C (Video + Data)" },
+            { id: "tb3", label: "Thunderbolt 3" },
+            { id: "tb4", label: "Thunderbolt 4" },
+          ],
+        },
+        {
+          id: "vesa_mount",
+          label: "VESA Mount",
+          kind: "select",
+          requiredForVendor: true,
+          options: [
+            { id: "none", label: "None" },
+            { id: "75", label: "75×75 mm" },
+            { id: "100", label: "100×100 mm" },
+            { id: "200", label: "200×200 mm" },
+          ],
+        },
+      ],
+    },
+  ],
+};

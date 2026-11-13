@@ -1,0 +1,86 @@
+name: Notify Slack on PR Merge
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  notify-slack:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify Slack via webhook
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+          TITLE: ${{ github.event.pull_request.title }}
+          URL: ${{ github.event.pull_request.html_url }}
+          BODY: ${{ github.event.pull_request.body }}
+          ACTOR: ${{ github.actor }}
+          BRANCH: ${{ github.event.pull_request.base.ref }}
+          SHA: ${{ github.sha }}
+          MERGED_BY: ${{ github.event.pull_request.merged_by.login }}
+        run: |
+          payload=$(cat <<EOF
+          {
+            "blocks": [
+              {
+                "type": "context",
+                "elements": [
+                  {
+                    "type": "image",
+                    "image_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+                    "alt_text": "GitHub Logo"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Pull Request Merged!*"
+                  }
+                ]
+              },
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": ":tada: $TITLE",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Repository:* $REPO\n*Target Branch:* \`$BRANCH\`\n*Commit:* \`$SHA\`\n*Merged by:* $MERGED_BY"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Description:*\n${BODY:-_No description provided._}"
+                }
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View Pull Request 🔗"
+                    },
+                    "url": "$URL"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+          )
+
+          echo "$payload" | curl -X POST -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK"

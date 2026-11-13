@@ -1,0 +1,14 @@
+---
+description: Keep edited files small and formatted
+alwaysApply: true
+---
+
+# File Size And Formatting
+
+For every coding task in this project:
+
+- Keep each touched source, test, config, and markdown file at **200 lines or fewer**.
+- If a touched file would exceed 200 lines, split it into focused modules before finishing.
+- Run Prettier or a Prettier check on all touched files before the final response.
+- When adding tests, split test suites into focused files instead of allowing a single test file to grow past 200 lines.
+- Mention any exception explicitly if a file cannot reasonably be split.

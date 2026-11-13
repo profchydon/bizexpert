@@ -1,0 +1,51 @@
+diff --git a/node_modules/react-aria/dist/private/collections/BaseCollection.cjs b/node_modules/react-aria/dist/private/collections/BaseCollection.cjs
+index 0b55776..b78388e 100644
+--- a/node_modules/react-aria/dist/private/collections/BaseCollection.cjs
++++ b/node_modules/react-aria/dist/private/collections/BaseCollection.cjs
+@@ -41,7 +41,11 @@ $parcel$export(module.exports, "BaseCollection", function () { return $a76f1c7ec
+         this.key = key;
+     }
+     get childNodes() {
+-        throw new Error('childNodes is not supported');
++        // Patched (see patches/react-aria+3.48.0.patch): React 19.2's dev component-render logging
++        // and React DevTools enumerate this getter while diffing props. The original throws, which
++        // surfaces as a "childNodes is not supported" runtime overlay. React Aria itself never reads
++        // this getter on these nodes, so returning an empty iterable is safe and silences the crash.
++        return [];
+     }
+     clone() {
+         let node = new this.constructor(this.key);
+diff --git a/node_modules/react-aria/dist/private/collections/BaseCollection.js b/node_modules/react-aria/dist/private/collections/BaseCollection.js
+index f963a9a..d4a340f 100644
+--- a/node_modules/react-aria/dist/private/collections/BaseCollection.js
++++ b/node_modules/react-aria/dist/private/collections/BaseCollection.js
+@@ -10,7 +10,11 @@
+  * governing permissions and limitations under the License.
+  */ class $0c55dae31ace3277$export$d68d59712b04d9d1 {
+     get childNodes() {
+-        throw new Error('childNodes is not supported');
++        // Patched (see patches/react-aria+3.48.0.patch): React 19.2's dev component-render logging
++        // and React DevTools enumerate this getter while diffing props. The original throws, which
++        // surfaces as a "childNodes is not supported" runtime overlay. React Aria itself never reads
++        // this getter on these nodes, so returning an empty iterable is safe and silences the crash.
++        return [];
+     }
+     clone() {
+         let node = new this.constructor(this.key);
+diff --git a/node_modules/react-aria/dist/private/collections/BaseCollection.mjs b/node_modules/react-aria/dist/private/collections/BaseCollection.mjs
+index f96c200..eac05cf 100644
+--- a/node_modules/react-aria/dist/private/collections/BaseCollection.mjs
++++ b/node_modules/react-aria/dist/private/collections/BaseCollection.mjs
+@@ -29,7 +29,11 @@
+         this.key = key;
+     }
+     get childNodes() {
+-        throw new Error('childNodes is not supported');
++        // Patched (see patches/react-aria+3.48.0.patch): React 19.2's dev component-render logging
++        // and React DevTools enumerate this getter while diffing props. The original throws, which
++        // surfaces as a "childNodes is not supported" runtime overlay. React Aria itself never reads
++        // this getter on these nodes, so returning an empty iterable is safe and silences the crash.
++        return [];
+     }
+     clone() {
+         let node = new this.constructor(this.key);

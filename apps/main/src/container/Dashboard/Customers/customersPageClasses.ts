@@ -1,0 +1,16 @@
+export {
+  locationsPageSectionClass as customersPageSectionClass,
+  locationsTableShellClass as customersTableShellClass,
+  locationsTableToolbarClass as customersTableToolbarClass,
+  locationsTableTitleClass as customersTableTitleClass,
+  locationsTableCountBadgeClass as customersTableCountBadgeClass,
+  LOCATION_FORM_SLIDEOUT_RESIZE as CUSTOMER_FORM_SLIDEOUT_RESIZE,
+  locationsRowActionItemClass as customersRowActionItemClass,
+  locationsDeleteModalContentClass as customersDeleteModalContentClass,
+  locationsDeleteModalCloseButtonClass as customersDeleteModalCloseButtonClass,
+  locationsDeleteModalTitleClass as customersDeleteModalTitleClass,
+  locationsDeleteModalBodyClass as customersDeleteModalBodyClass,
+  locationsDeleteModalFooterClass as customersDeleteModalFooterClass,
+  locationsDeleteModalCancelClass as customersDeleteModalCancelClass,
+  locationsDeleteModalConfirmClass as customersDeleteModalConfirmClass,
+} from "../Locations/locationsPageClasses";

@@ -1,0 +1,51 @@
+
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Build outputs (will be copied from build stage)
+.next
+out
+
+# Development files
+.git
+.gitignore
+.github
+.vscode
+.env*
+!.env.example
+
+# Testing
+tests-examples
+e2e
+playwright-report
+test-results
+coverage
+
+# Misc
+README.md
+*.md
+Dockerfile
+docker-compose*
+.dockerignore
+
+# Logs
+logs
+*.log
+
+# Cache
+.next/cache
+.npm
+.eslintcache
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+Jenkinsfile-sandbox
+Jenkinsfile-prod

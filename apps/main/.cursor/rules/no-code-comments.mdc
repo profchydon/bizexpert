@@ -1,0 +1,24 @@
+---
+description: Do not add comments to code
+alwaysApply: true
+---
+
+# No Code Comments
+
+Do **not** add comments to code. This applies to all languages and file types
+(inline `//`, block `/* */`, `#`, JSDoc/docstrings, JSX `{/* */}`, etc.).
+
+- Write clear, self-explanatory code with meaningful names instead of comments.
+- Do not narrate what code does, restate logic, or add section headers.
+- Do not add explanatory comments for the changes you make.
+- Leave existing comments untouched unless the task is specifically about them.
+- Only exception: add a comment when the user explicitly asks for one.
+
+```ts
+// ❌ BAD: commentary added by the agent
+// resolve the id to a readable name
+const label = names.get(id) ?? id;
+
+// ✅ GOOD: no comment
+const label = names.get(id) ?? id;
+```

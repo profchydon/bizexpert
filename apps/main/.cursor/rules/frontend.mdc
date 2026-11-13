@@ -1,0 +1,46 @@
+---
+alwaysApply: true
+---
+# remote-v2-frontend (Next.js)
+
+Monorepo path: [remote-v2-frontend](mdc:remote-v2-frontend/README.md)
+
+## Stack
+
+- **Next.js** App Router (`src/app`), **TypeScript**, **Tailwind** ([tailwind.config.ts](mdc:remote-v2-frontend/tailwind.config.ts)), **shadcn/ui** ([components.json](mdc:remote-v2-frontend/components.json)).
+- **Redux** + redux-persist ([src/store](mdc:remote-v2-frontend/src/store)), global [Providers](mdc:remote-v2-frontend/src/lib/providers.tsx).
+- **Data / HTTP**: API modules under [src/api](mdc:remote-v2-frontend/src/api) (organized by `baseQueries`), interceptors in [src/api/interceptor](mdc:remote-v2-frontend/src/api/interceptor).
+- **Monitoring**: Sentry, PostHog, Logtail (see root layout and dependencies in [package.json](mdc:remote-v2-frontend/package.json)).
+
+## Top-level layout (`src/`)
+
+| Area | Role |
+|------|------|
+| [src/app](mdc:remote-v2-frontend/src/app) | Routes: `dashboard/*`, `auth/*`, `employee/*`, `onboarding/*`, `track/*`, `api/*` (Route Handlers). Root [layout.tsx](mdc:remote-v2-frontend/src/app/layout.tsx), [middleware.ts](mdc:remote-v2-frontend/src/middleware.ts) at `src/` (integration OAuth redirects). |
+| [src/container](mdc:remote-v2-frontend/src/container) | Page-level composition and flows (largest area: dashboard features mirror URL segments). |
+| [src/components](mdc:remote-v2-frontend/src/components) | Shared UI: `ui/` (primitives), drawers, tables, HOCs, feature-specific building blocks. |
+| [src/api](mdc:remote-v2-frontend/src/api) | Backend client: `baseQueries/companiesApi/*`, auth, cart, orders, etc. |
+| [src/store](mdc:remote-v2-frontend/src/store) | Redux store, slices, middlewares. |
+| [src/hooks](mdc:remote-v2-frontend/src/hooks) | Shared hooks. |
+| [src/utils](mdc:remote-v2-frontend/src/utils) | Helpers (auth, encryption, etc.). |
+| [src/types](mdc:remote-v2-frontend/src/types) | Shared TypeScript types. |
+| [src/config](mdc:remote-v2-frontend/src/config) | App config. |
+| [src/lib](mdc:remote-v2-frontend/src/lib) | `providers`, PostHog, utilities colocated with app wiring. |
+| [src/styles](mdc:remote-v2-frontend/src/styles) | Global CSS. |
+| [src/assets](mdc:remote-v2-frontend/src/assets) | Images and icons. |
+
+## App routes (high level)
+
+- **`/dashboard/*`**: company admin (overview, employees, equipment, orders, catalogs, storage, transactions, settings, integrations, etc.). Nested layouts per major section.
+- **`/auth/*`**: login, OAuth callback, employee invite.
+- **`/employee/*`**: employee portal (profile, catalogs, orders, assets).
+- **`/onboarding/*`**: company signup / onboarding.
+- **`/track/[orderId]`**: public order tracking.
+- **`/api/*`**: Next Route Handlers (e.g. Sentry example routes).
+
+## Conventions
+
+- Prefer **feature folders** under `container/Dashboard/...` that align with `app/dashboard/...` routes; keep **`page.tsx` thin** and delegate to containers.
+- Reuse **`components/ui`** and existing patterns from neighboring features before adding new abstractions.
+- Follow existing **import alias** `@/` (see [tsconfig.json](mdc:remote-v2-frontend/tsconfig.json)).
+- **Navigation transitions:** interactive buttons that call `router.push()` must use [useTransitionRouter](mdc:remote-v2-frontend/src/hooks/useTransitionRouter.ts) and bind `isPending` to `Button` `isLoading`. See [navigation-transitions.mdc](mdc:remote-v2-frontend/.cursor/rules/navigation-transitions.mdc).

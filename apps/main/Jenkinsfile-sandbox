@@ -1,0 +1,903 @@
+pipeline {
+    agent any
+
+    environment {
+        // AWS Configuration
+        AWS_REGION = credentials('aws-region')
+        AWS_ACCOUNT_ID = credentials('aws-account-id')
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        
+        // Image Configuration
+        IMAGE_NAME = 'sandbox-remote-ui'
+        DEPLOYMENT_FILE = 'Sandbox/remote-ui/deployment.yaml'
+        
+        // Status Tracking - Initialize as empty
+        CHECKOUT_STATUS = ""
+        OWASP_STATUS = ""
+        BUILD_STATUS = ""
+        TRIVY_STATUS = ""
+        PUSH_STATUS = ""
+        DEPLOY_UPDATE_STATUS = ""
+        
+        FIRST_FAILED_STAGE = ""
+        FAILED_STAGE_LOG = ""
+        PIPELINE_STATUS = "SUCCESS"
+        
+        // Image Tags
+        SHORT_SHA = ""
+        IMAGE_TAG = ""
+        
+        // Report Paths
+        REPORT_IMAGE_HTML  = "trivy-image-report.html"
+        REPORT_IMAGE_JSON  = "trivy-image-report.json"
+        REPORT_FS_HTML  = "trivy-fs-report.html"
+        REPORT_FS_JSON  = "trivy-fs-report.json"
+    }
+
+    stages {
+        stage('Checkout Repository') {
+            steps {
+                script {
+                    try {
+                        echo "🔄 Checking out source code..."
+                        checkout scm
+                        
+                        // Generate short SHA for tagging
+                        SHORT_SHA = sh(
+                            script: "git rev-parse --short=8 HEAD",
+                            returnStdout: true
+                        ).trim()
+                        
+                        IMAGE_TAG = "sha-${SHORT_SHA}"
+                        
+                        echo "✅ Checkout successful - Commit SHA: ${SHORT_SHA}"
+                        echo "📦 Image tag will be: ${IMAGE_TAG}"
+                        
+                        sh '''
+                            echo "passed" > checkout_status.txt
+                            sync
+                        '''
+                        CHECKOUT_STATUS = "passed"
+                        
+                    } catch (Exception e) {
+                        CHECKOUT_STATUS = "failed"
+                        FIRST_FAILED_STAGE = "Checkout Repository"
+                        FAILED_STAGE_LOG = e.getMessage()
+                        
+                        sh '''
+                            echo "failed" > checkout_status.txt
+                            echo "Checkout Repository" > failed_stage.txt
+                            sync
+                        '''
+                        
+                        currentBuild.result = 'FAILURE'
+                        error("Checkout failed: ${e.getMessage()}")
+                    }
+                }
+            }
+        }
+
+        stage('OWASP Dependency Check') {
+            steps {
+                script {                 
+                    try {
+                        echo "🔍 Running OWASP Dependency Check..."
+                        
+                        // Use the Jenkins plugin method which handles the tool path
+                        def owaspOutput = ""
+                        def owaspExitCode = 0
+                        
+                        withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
+                            try {
+                                dependencyCheck(
+                                    additionalArguments: "--project \"${IMAGE_NAME}\" --scan . --format HTML --format JSON --format XML --out . --prettyPrint --nvdApiKey ${NVD_API_KEY}",
+                                    odcInstallation: 'Dependency-Check'
+                                )
+                            } catch (Exception e) {
+                                // Capture any warnings/errors but don't fail yet
+                                owaspExitCode = 1
+                                echo "OWASP scan completed with findings: ${e.getMessage()}"
+                            }
+                        }
+                        
+                        // Publish the report
+                        dependencyCheckPublisher pattern: 'dependency-check-report.xml'
+                        
+                        // Check if report was generated successfully
+                        def reportExists = fileExists('dependency-check-report.xml')
+                        
+                        if (reportExists && owaspExitCode == 0) {
+                            echo "✅ OWASP scan completed successfully"
+                            OWASP_STATUS = "passed"
+                            sh 'echo "passed" > owasp_status.txt'
+                        } else if (reportExists) {
+                            echo "⚠️ OWASP scan found vulnerabilities (non-blocking)"
+                            OWASP_STATUS = "warning"
+                            sh 'echo "warning" > owasp_status.txt'
+                        } else {
+                            throw new Exception("OWASP scan failed to generate report")
+                        }
+                        
+                        sh 'sync'
+                        
+                    } catch (Exception e) {
+                        OWASP_STATUS = "failed"
+                        FIRST_FAILED_STAGE = "OWASP Dependency Check"
+                        
+                        // Try to get console log output
+                        def consoleLog = currentBuild.rawBuild.getLog(50).join('\n')
+                        FAILED_STAGE_LOG = consoleLog ?: "Log not available"
+                        
+                        sh '''
+                            echo "failed" > owasp_status.txt
+                            echo "OWASP Dependency Check" > failed_stage.txt
+                            sync
+                        '''
+                        
+                        currentBuild.result = 'FAILURE'
+                        error("OWASP check failed: ${e.getMessage()}")
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    try {
+                        echo "🐳 Building Docker image..."
+                        
+                        // Store variables
+                        def ecrRegistry = ECR_REGISTRY
+                        def imageName = IMAGE_NAME
+                        def imageTag = IMAGE_TAG
+                        
+                        echo "Building: ${ecrRegistry}/${imageName}:${imageTag}"
+                        
+                        withCredentials([
+                            string(credentialsId: 'github-classic-token', variable: 'GITHUB_TOKEN'),
+                            file(credentialsId: 'sandbox-remote-ui-env', variable: 'ENV_FILE')
+                        ]) {
+                            // Write a temporary build script
+                            writeFile file: 'docker_build.sh', text: """#!/bin/bash
+set -e
+
+export DOCKER_BUILDKIT=1
+export ENV=\$(cat "\${ENV_FILE}")
+
+docker build \\
+    --secret id=github_token,env=GITHUB_TOKEN \\
+    --secret id=env,env=ENV \\
+    --build-arg ENVIRONMENT=sandbox \\
+    --build-arg IMAGE_TAG=${imageTag} \\
+    -t ${ecrRegistry}/${imageName}:latest \\
+    -t ${ecrRegistry}/${imageName}:${imageTag} \\
+    . 2>&1 | tee build_output.txt
+
+exit \${PIPESTATUS[0]}
+"""
+                            
+                            sh 'chmod +x docker_build.sh'
+                            
+                            // Execute the build script
+                            def buildResult = sh(script: './docker_build.sh', returnStatus: true)
+                            
+                            if (buildResult == 0) {
+                                echo "✅ Docker build completed successfully"
+                                BUILD_STATUS = "passed"
+                                sh 'echo "passed" > build_status.txt'
+                            } else {
+                                throw new Exception("Docker build failed with exit code: ${buildResult}")
+                            }
+                        }
+                        
+                        sh 'sync'
+                        
+                    } catch (Exception e) {
+                        BUILD_STATUS = "failed"
+                        FIRST_FAILED_STAGE = "Build Docker Image"
+                        FAILED_STAGE_LOG = sh(
+                            script: 'tail -n 40 build_output.txt 2>/dev/null || echo "Log not available"',
+                            returnStdout: true
+                        ).trim()
+                        
+                        sh '''
+                            echo "failed" > build_status.txt
+                            echo "Build Docker Image" > failed_stage.txt
+                            sync
+                        '''
+                        
+                        currentBuild.result = 'FAILURE'
+                        error("Docker build failed: ${e.getMessage()}")
+                    }
+                }
+            }
+        }
+
+        stage('Trivy Security Scan') {
+            steps {
+                script {
+                    try {
+                        echo "🔐 Running Trivy security scan..."
+                        
+                        def ecrRegistry = ECR_REGISTRY
+                        def imageName = IMAGE_NAME
+                        def reportImageHtml = REPORT_IMAGE_HTML
+                        def reportImageJson = REPORT_IMAGE_JSON
+                        def reportFsHtml = REPORT_FS_HTML
+                        def reportFsJson = REPORT_FS_JSON
+                        
+                        // Write trivy scan script
+                        writeFile file: 'trivy_scan.sh', text: """#!/bin/bash
+set -e
+
+# Groovy variables (interpolated NOW by Groovy)
+IMAGE_TARGET="${ecrRegistry}/${imageName}:latest"
+FS_TARGET="."
+REPORT_IMAGE_HTML="${reportImageHtml}"
+REPORT_IMAGE_JSON="${reportImageJson}"
+REPORT_FS_HTML="${reportFsHtml}"
+REPORT_FS_JSON="${reportFsJson}"
+
+echo "Locating Trivy HTML template..."
+
+# Shell variables (escaped so bash will process them)
+TRIVY_TEMPLATE_FILE=\$(find / -type f -name "html.tpl" 2>/dev/null | head -n 1)
+
+# MUST escape the shell variable reference
+if [ -z "\${TRIVY_TEMPLATE_FILE}" ]; then
+    echo "ERROR: html.tpl template not found on this agent."
+    exit 1
+fi
+
+echo "Using template: \${TRIVY_TEMPLATE_FILE}"
+echo "Image Target: \${IMAGE_TARGET}"
+echo "Filesystem Target: \${FS_TARGET}"
+
+echo "===== IMAGE SCANS ====="
+
+echo "--- Running Trivy HTML Image Scan ---"
+trivy image \\
+    --severity HIGH,CRITICAL \\
+    --format template \\
+    --template "@\${TRIVY_TEMPLATE_FILE}" \\
+    --output "\${REPORT_IMAGE_HTML}" \\
+    "\${IMAGE_TARGET}" 2>&1 | tee trivy_output_image.txt
+IMAGE_EXIT=\${PIPESTATUS[0]}
+
+echo "--- Running Trivy JSON Image Scan ---"
+trivy image \\
+    --severity HIGH,CRITICAL \\
+    --format json \\
+    --output "\${REPORT_IMAGE_JSON}" \\
+    "\${IMAGE_TARGET}" || true
+
+echo "--- Running Trivy Table Image Scan ---"
+trivy image \\
+    --severity HIGH,CRITICAL \\
+    "\${IMAGE_TARGET}" || true
+
+echo "===== FILESYSTEM SCANS ====="
+
+echo "--- Running Trivy HTML FS Scan ---"
+trivy fs \\
+    --severity HIGH,CRITICAL \\
+    --format template \\
+    --template "@\${TRIVY_TEMPLATE_FILE}" \\
+    --output "\${REPORT_FS_HTML}" \\
+    "\${FS_TARGET}" 2>&1 | tee trivy_output_fs.txt
+FS_EXIT=\${PIPESTATUS[0]}
+
+echo "--- Running Trivy JSON FS Scan ---"
+trivy fs \\
+    --severity HIGH,CRITICAL \\
+    --format json \\
+    --output "\${REPORT_FS_JSON}" \\
+    "\${FS_TARGET}" || true
+
+echo "--- Running Trivy Table FS Scan ---"
+trivy fs \\
+    --severity HIGH,CRITICAL \\
+    "\${FS_TARGET}" || true
+
+echo "===== TRIVY SUMMARY ====="
+
+echo "-- IMAGE SCAN SUMMARY --"
+cat trivy_output_image.txt
+
+echo "-- FS SCAN SUMMARY --"
+cat trivy_output_fs.txt
+
+# Final exit code: fail if EITHER scan found vulnerabilities
+if [ \${IMAGE_EXIT} -ne 0 ] || [ \${FS_EXIT} -ne 0 ]; then
+    exit 1
+else
+    exit 0
+fi
+"""
+
+                        sh 'chmod +x trivy_scan.sh'
+                        
+                        def trivyResult = sh(script: './trivy_scan.sh', returnStatus: true)
+                        
+                        // Trivy returns non-zero if vulnerabilities found, but we treat as warning
+                        if (trivyResult == 0) {
+                            echo "✅ Trivy scan completed - No HIGH/CRITICAL vulnerabilities found"
+                            TRIVY_STATUS = "passed"
+                            sh 'echo "passed" > trivy_status.txt'
+                        } else {
+                            echo "⚠️ Trivy scan found vulnerabilities (non-blocking)"
+                            TRIVY_STATUS = "warning"
+                            sh 'echo "warning" > trivy_status.txt'
+                        }
+                        
+                        sh 'sync'
+                        
+                    } catch (Exception e) {
+                        TRIVY_STATUS = "failed"
+                        FIRST_FAILED_STAGE = "Trivy Security Scan"
+                        FAILED_STAGE_LOG = sh(
+                            script: '''
+                                echo "--- IMAGE SCAN LOG ---"
+                                tail -n 20 trivy_output_image.txt 2>/dev/null || echo "Image log not available"
+
+                                echo "--- FS SCAN LOG ---"
+                                tail -n 20 trivy_output_fs.txt 2>/dev/null || echo "FS log not available"
+                            ''',
+                            returnStdout: true
+                        ).trim()
+                        
+                        sh '''
+                            echo "failed" > trivy_status.txt
+                            echo "Trivy Security Scan" > failed_stage.txt
+                            sync
+                        '''
+                        
+                        currentBuild.result = 'FAILURE'
+                        error("Trivy scan failed: ${e.getMessage()}")
+                    }
+                }
+            }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                script {
+                    try {
+                        echo "📤 Pushing Docker image to ECR..."
+                        
+                        def awsRegion = AWS_REGION
+                        def ecrRegistry = ECR_REGISTRY
+                        def imageName = IMAGE_NAME
+                        def imageTag = IMAGE_TAG
+                        
+                        // Write push script
+                        writeFile file: 'ecr_push.sh', text: """#!/bin/bash
+set -e
+
+# Login to ECR
+aws ecr get-login-password --region ${awsRegion} | \\
+    docker login --username AWS --password-stdin ${ecrRegistry}
+
+# Push both tags
+docker push ${ecrRegistry}/${imageName}:latest 2>&1 | tee push_output.txt
+docker push ${ecrRegistry}/${imageName}:${imageTag} 2>&1 | tee -a push_output.txt
+
+exit \${PIPESTATUS[0]}
+"""
+                        
+                        sh 'chmod +x ecr_push.sh'
+                        
+                        def pushResult = sh(script: './ecr_push.sh', returnStatus: true)
+                        
+                        if (pushResult == 0) {
+                            echo "✅ Successfully pushed images to ECR"
+                            echo "   - ${ecrRegistry}/${imageName}:latest"
+                            echo "   - ${ecrRegistry}/${imageName}:${imageTag}"
+                            PUSH_STATUS = "passed"
+                            sh 'echo "passed" > push_status.txt'
+                            
+                            // Clean up Docker resources immediately after successful push
+                            // Remove only the images we just built to free up space
+                            try {
+                                echo "🧹 Removing built Docker images..."
+                                sh """
+                                    docker rmi ${ecrRegistry}/${imageName}:latest 2>&1 || echo "Warning: Failed to remove latest tag"
+                                    docker rmi ${ecrRegistry}/${imageName}:${imageTag} 2>&1 || echo "Warning: Failed to remove ${imageTag}"
+                                """
+                                echo "✅ Docker image cleanup completed"
+                            } catch (Exception e) {
+                                echo "⚠️ Docker cleanup failed (non-critical): ${e.getMessage()}"
+                            }
+                        } else {
+                            throw new Exception("Docker push failed with exit code: ${pushResult}")
+                        }
+                        
+                        sh 'sync'
+                        
+                    } catch (Exception e) {
+                        PUSH_STATUS = "failed"
+                        FIRST_FAILED_STAGE = "Push to ECR"
+                        FAILED_STAGE_LOG = sh(
+                            script: 'tail -n 40 push_output.txt 2>/dev/null || echo "Log not available"',
+                            returnStdout: true
+                        ).trim()
+                        
+                        sh '''
+                            echo "failed" > push_status.txt
+                            echo "Push to ECR" > failed_stage.txt
+                            sync
+                        '''
+                        
+                        currentBuild.result = 'FAILURE'
+                        error("ECR push failed: ${e.getMessage()}")
+                    }
+                }
+            }
+        }
+
+        stage('Update Deployment Manifest') {
+            steps {
+                script {
+                    try {
+                        echo "📝 Updating deployment manifest via Git clone..."
+                        
+                        def ecrRegistry = ECR_REGISTRY
+                        def imageName = IMAGE_NAME
+                        def imageTag = IMAGE_TAG
+                        def deploymentFile = DEPLOYMENT_FILE
+                        def shortSha = SHORT_SHA
+                        def buildNumber = env.BUILD_NUMBER
+                        
+                        withCredentials([
+                            string(credentialsId: 'github-classic-token', variable: 'GITHUB_TOKEN'),
+                            string(credentialsId: 'github-repo', variable: 'GITHUB_REPO'),
+                            string(credentialsId: 'git-username', variable: 'GIT_USER'),
+                            string(credentialsId: 'git-email', variable: 'GIT_EMAIL')
+                        ]) {
+                            // Write git update script
+                            writeFile file: 'git_update.sh', text: """#!/bin/bash
+set -e
+
+# Clone using HTTPS with token authentication
+rm -rf rayda-k8s-manifests
+git clone https://\${GITHUB_TOKEN}@github.com/\${GITHUB_REPO}.git 2>&1 | tee -a deploy_update_output.txt
+
+cd rayda-k8s-manifests
+
+# Configure git (required for commits)
+git config user.name "\${GIT_USER}"
+git config user.email "\${GIT_EMAIL}"
+
+# Update the image tag
+sed -i "s|image: ${ecrRegistry}/${imageName}:.*|image: ${ecrRegistry}/${imageName}:${imageTag}|g" ${deploymentFile}
+
+# Verify the change
+echo "=== Updated deployment.yaml ===" | tee -a ../deploy_update_output.txt
+grep "image: ${ecrRegistry}/${imageName}" ${deploymentFile} | tee -a ../deploy_update_output.txt
+
+# Commit and push
+git add ${deploymentFile}
+git commit -m "chore: Update ${imageName} to ${imageTag}
+
+Automated deployment update by Jenkins
+Build: ${buildNumber}
+Commit: ${shortSha}" 2>&1 | tee -a ../deploy_update_output.txt
+
+git push https://\${GITHUB_TOKEN}@github.com/\${GITHUB_REPO}.git main 2>&1 | tee -a ../deploy_update_output.txt
+
+cd ..
+"""
+                            
+                            sh 'chmod +x git_update.sh'
+                            
+                            def gitResult = sh(script: './git_update.sh', returnStatus: true)
+                            
+                            if (gitResult == 0) {
+                                echo "✅ Successfully updated deployment manifest"
+                                echo "🔄 ArgoCD will detect and apply the changes"
+                                DEPLOY_UPDATE_STATUS = "passed"
+                                sh 'echo "passed" > deploy_update_status.txt'
+                            } else {
+                                throw new Exception("Git push failed with exit code: ${gitResult}")
+                            }
+                        }
+                        
+                        sh 'sync'
+                        
+                    } catch (Exception e) {
+                        DEPLOY_UPDATE_STATUS = "failed"
+                        FIRST_FAILED_STAGE = "Update Deployment Manifest"
+                        FAILED_STAGE_LOG = sh(
+                            script: 'tail -n 40 deploy_update_output.txt 2>/dev/null || echo "Log not available"',
+                            returnStdout: true
+                        ).trim()
+                        
+                        sh '''
+                            echo "failed" > deploy_update_status.txt
+                            echo "Update Deployment Manifest" > failed_stage.txt
+                            sync
+                        '''
+                        
+                        currentBuild.result = 'FAILURE'
+                        error("Deployment update failed: ${e.getMessage()}")
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                echo "📊 Generating reports and sending notifications..."
+                
+                // Get status icons
+                def getStatusIcon = { status ->
+                    if (status == "passed") return "✅"
+                    else if (status == "warning") return "⚠️"
+                    else if (status == "failed") return "❌"
+                    else return "⏸️"
+                }
+                
+                // Read statuses from files
+                def checkoutStatus = sh(script: 'cat checkout_status.txt 2>/dev/null || echo "unknown"', returnStdout: true).trim()
+                def owaspStatus = sh(script: 'cat owasp_status.txt 2>/dev/null || echo "unknown"', returnStdout: true).trim()
+                def buildStatus = sh(script: 'cat build_status.txt 2>/dev/null || echo "unknown"', returnStdout: true).trim()
+                def trivyStatus = sh(script: 'cat trivy_status.txt 2>/dev/null || echo "unknown"', returnStdout: true).trim()
+                def pushStatus = sh(script: 'cat push_status.txt 2>/dev/null || echo "unknown"', returnStdout: true).trim()
+                def deployStatus = sh(script: 'cat deploy_update_status.txt 2>/dev/null || echo "unknown"', returnStdout: true).trim()
+                
+                def checkoutIcon = getStatusIcon(checkoutStatus)
+                def owaspIcon = getStatusIcon(owaspStatus)
+                def buildIcon = getStatusIcon(buildStatus)
+                def trivyIcon = getStatusIcon(trivyStatus)
+                def pushIcon = getStatusIcon(pushStatus)
+                def deployIcon = getStatusIcon(deployStatus)
+                
+                // Determine overall status
+                def overallStatus = currentBuild.result ?: 'SUCCESS'
+                def statusIcon = overallStatus == 'SUCCESS' ? '✅' : '🚨'
+                
+                // Get failed stage info
+                def failedStage = sh(script: 'cat failed_stage.txt 2>/dev/null || echo "None"', returnStdout: true).trim()
+                
+                // Collect skipped stages
+                def skippedStages = []
+                if (failedStage != "None") {
+                    def allStages = [
+                        "Checkout Repository",
+                        "OWASP Dependency Check",
+                        "Build Docker Image",
+                        "Trivy Security Scan",
+                        "Push to ECR",
+                        "Update Deployment Manifest"
+                    ]
+                    
+                    def failedIndex = allStages.indexOf(failedStage)
+                    if (failedIndex >= 0 && failedIndex < allStages.size() - 1) {
+                        skippedStages = allStages[(failedIndex + 1)..-1]
+                    }
+                }
+                
+                // === SEND EMAIL WITH SECURITY REPORTS ===
+                // Store values to avoid credential interpolation issues
+                def emailRecipients = ""
+                def namespace = ""
+                
+                withCredentials([
+                    string(credentialsId: 'email-recipients', variable: 'EMAIL_RECIPIENTS'),
+                    string(credentialsId: 'k8s-namespace', variable: 'NAMESPACE')
+                ]) {
+                    emailRecipients = EMAIL_RECIPIENTS
+                    namespace = NAMESPACE
+                }
+                
+                // Now use the stored values
+                if (fileExists('dependency-check-report.html') || fileExists(env.TRIVY_REPORT)) {
+                    echo "📧 Sending security scan reports via email..."
+                    
+                    def imageName = env.IMAGE_NAME
+                    def imageTag = IMAGE_TAG
+                    def trivyReport = env.TRIVY_REPORT
+                    
+                    emailext (
+                        subject: "${statusIcon} Security Scan Reports - ${imageName} - Build #${env.BUILD_NUMBER}",
+                        body: """
+                        <h2>${statusIcon} Security Scan Reports</h2>
+                        
+                        <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+                            <tr><th>Property</th><th>Value</th></tr>
+                            <tr><td><strong>Job Name</strong></td><td>${env.JOB_NAME}</td></tr>
+                            <tr><td><strong>Build Number</strong></td><td>${env.BUILD_NUMBER}</td></tr>
+                            <tr><td><strong>Image</strong></td><td>${imageName}</td></tr>
+                            <tr><td><strong>Tag</strong></td><td>${imageTag}</td></tr>
+                            <tr><td><strong>Namespace</strong></td><td>${namespace}</td></tr>
+                            <tr><td><strong>Status</strong></td><td>${overallStatus}</td></tr>
+                            <tr><td><strong>Build URL</strong></td><td><a href="${env.BUILD_URL}">${env.BUILD_URL}</a></td></tr>
+                        </table>
+                        
+                        <h3>Pipeline Stages Status:</h3>
+                        <ul>
+                            <li>${checkoutIcon} Checkout Repository</li>
+                            <li>${owaspIcon} OWASP Dependency Check</li>
+                            <li>${buildIcon} Build Docker Image</li>
+                            <li>${trivyIcon} Trivy Security Scan</li>
+                            <li>${pushIcon} Push to ECR</li>
+                            <li>${deployIcon} Update Deployment Manifest</li>
+                        </ul>
+                        
+                        <h3>📎 Attached Reports:</h3>
+                        <ul>
+                            <li>dependency-check-report.html - OWASP Dependency Check</li>
+                            <li>trivy-report.html - Trivy Image Security Scan</li>
+                            <li>trivy-fs-report.html - Trivy File System Security Scan</li>
+                        </ul>
+                        
+                        <p><em>Please open the attached HTML files in your browser to view detailed security reports.</em></p>
+                        """,
+                        mimeType: 'text/html',
+                        to: emailRecipients,
+                        attachmentsPattern: "dependency-check-report.html,trivy-image-report.html,trivy-fs-report.html"
+                    )
+                }
+                
+                // === SEND SLACK NOTIFICATION ===
+                echo "📱 Sending Slack notification..."
+                
+                withCredentials([string(credentialsId: 'slack-webhook-url', variable: 'SLACK_WEBHOOK')]) {
+                    
+                    if (overallStatus == 'SUCCESS') {
+                        // SUCCESS SLACK MESSAGE
+                        def slackMessage = """
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "✅ Pipeline Succeeded"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "image",
+          "image_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png",
+          "alt_text": "Jenkins Logo"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Job:* ${env.JOB_NAME}\\n*Build:* #${env.BUILD_NUMBER}\\n*Image:* ${IMAGE_NAME}:${IMAGE_TAG}"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Status:*\\n:white_check_mark: All stages completed successfully"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Duration:*\\n${currentBuild.durationString}"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Pipeline Stages:*\\n${checkoutIcon} Checkout\\n${owaspIcon} OWASP Scan\\n${buildIcon} Docker Build\\n${trivyIcon} Trivy Scan\\n${pushIcon} ECR Push\\n${deployIcon} Deploy Update"
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Build"
+          },
+          "url": "${env.BUILD_URL}"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Console"
+          },
+          "url": "${env.BUILD_URL}console"
+        }
+      ]
+    }
+  ]
+}
+"""
+                        
+                        sendSlackPayload(slackMessage)
+                        
+                    } else {
+                        // FAILURE SLACK MESSAGE
+                        def logHeader = "*Failed Stage Log (Last 40 lines):*"
+                        def failedLog = formatLogForSlack(FAILED_STAGE_LOG, logHeader)
+                        
+                        def skippedStagesText = skippedStages.isEmpty() ? "None" : skippedStages.collect { "⏸️ ${it}" }.join("\\n")
+                        
+                        def logBlock = "```${failedLog}```"
+
+                        def slackMessage = """
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🚨 Pipeline Failed"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "image",
+          "image_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png",
+          "alt_text": "Jenkins Logo"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Job:* ${env.JOB_NAME}\\n*Build:* #${env.BUILD_NUMBER}\\n*Image:* ${IMAGE_NAME}:${IMAGE_TAG}"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Failed Stage:*\\n:x: ${failedStage}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Duration:*\\n${currentBuild.durationString}"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Pipeline Stages:*\\n${checkoutIcon} Checkout\\n${owaspIcon} OWASP Scan\\n${buildIcon} Docker Build\\n${trivyIcon} Trivy Scan\\n${pushIcon} ECR Push\\n${deployIcon} Deploy Update"
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Skipped Stages:*\\n${skippedStagesText}"
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "${logHeader}\\n${logBlock}"
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Full Logs"
+          },
+          "url": "${env.BUILD_URL}console",
+          "style": "danger"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Build"
+          },
+          "url": "${env.BUILD_URL}"
+        }
+      ]
+    }
+  ]
+}
+"""
+                        
+                        sendSlackPayload(slackMessage)
+                    }
+                }
+            }
+            
+            // Archive artifacts
+            archiveArtifacts artifacts: 'dependency-check-report.html,trivy-image-report.html,trivy-fs-report.html', allowEmptyArchive: true
+            
+            // Clean workspace
+            cleanWs()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Slack helpers
+// ---------------------------------------------------------------------------
+
+// Escape a string so it is safe inside a JSON string literal.
+def jsonEscape(String s) {
+    return s
+        .replace('\\', '\\\\')
+        .replace('"', '\\"')
+        .replace('\n', '\\n')
+        .replace('\r', '')
+        .replace('\t', '  ')
+        .replaceAll('[\\x00-\\x1F]', '')   // any other raw control char is invalid in JSON
+}
+
+// Turn raw stage output into text that is safe to drop into a Slack mrkdwn code block
+// inside a JSON payload. The section it ends up in is rendered as:
+//     <header>\n```<log>```
+// so the log is trimmed (keeping the tail, the most relevant part) only by as much as needed
+// for the whole section text to fit Slack's 3000 char limit.
+def formatLogForSlack(String raw, String header) {
+    final int SLACK_SECTION_LIMIT = 3000
+    final int SAFETY_MARGIN = 5      // headroom in case Slack adds characters/newlines
+
+    def log = (raw ?: 'Log not available')
+        .replaceAll('\\x1B\\[[0-9;?]*[ -/]*[@-~]', '')   // strip ANSI colour/cursor codes
+        .replace('&', '&amp;')                          // Slack requires & < > to be entity-escaped
+        .replace('<', '&lt;')
+        .replace('>', '&gt;')
+
+    int wrapperLength = header.length() + 1 + 3 + 3   // header + "\n" + opening ``` + closing ```
+    int totalLength = wrapperLength + log.length()
+
+    if (totalLength > SLACK_SECTION_LIMIT) {
+        int cut = (totalLength - SLACK_SECTION_LIMIT) + SAFETY_MARGIN
+        log = cut >= log.length() ? '' : log.substring(cut)
+    }
+    return jsonEscape(log)
+}
+
+// Post a payload to the webhook and report the outcome without failing the build.
+// Must be called inside withCredentials([... variable: 'SLACK_WEBHOOK']).
+def sendSlackPayload(String payload) {
+    writeFile file: 'slack_payload.json', text: payload
+    def httpCode = sh(
+        script: 'curl -sS -o slack_response.txt -w "%{http_code}" -X POST -H "Content-type: application/json" --data @slack_payload.json "${SLACK_WEBHOOK}" || true',
+        returnStdout: true
+    ).trim()
+    def body = fileExists('slack_response.txt') ? readFile('slack_response.txt').trim() : ''
+
+    if (httpCode == '200') {
+        echo "✅ Slack notification sent"
+    } else {
+        echo "⚠️ Slack notification failed (HTTP ${httpCode}): ${body}"
+    }
+}

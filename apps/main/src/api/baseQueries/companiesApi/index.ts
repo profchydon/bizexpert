@@ -1,0 +1,43 @@
+import config from "@/config/config";
+import { axiosBaseQuery } from "@/api/interceptor/axiosBaseQuery";
+import { createApi } from "@reduxjs/toolkit/query/react";
+
+export const companiesApi = createApi({
+  baseQuery: axiosBaseQuery({ baseUrl: `${config.API_URL!}/companies` }),
+  endpoints: () => ({}),
+  reducerPath: "companiesApi",
+  keepUnusedDataFor: 30,
+  tagTypes: [
+    "Dashboard",
+    "Department",
+    "Levels",
+    "Catalogs",
+    "Employees",
+    "Equipment",
+    "SingleEmployees",
+    "Order",
+    "OrderMessages",
+    "Admins",
+    "Agreement",
+    "Subscription",
+    "Invitations",
+    "Integrations",
+    "ApiKeys",
+    "McpCredentials",
+    "AseetRefresh",
+    "Kits",
+    "KitItems",
+    "KitAssets",
+    "CatalogPolicies",
+    "CatalogRules",
+    "CatalogTriggerHistory",
+    "CatalogOrderRequests",
+    "TaxDisplay",
+    "Offices",
+    "Office",
+    "Entities",
+    "Onboarding",
+    "Telemetry",
+    "ResolveScriptApprovals",
+  ],
+});

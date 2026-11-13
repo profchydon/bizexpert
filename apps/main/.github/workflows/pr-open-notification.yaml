@@ -1,0 +1,80 @@
+name: Notify Slack on PR Open
+
+on:
+  pull_request:
+    types:
+      - opened
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Slack notification on PR opened
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+          TITLE: ${{ github.event.pull_request.title }}
+          URL: ${{ github.event.pull_request.html_url }}
+          BODY: ${{ github.event.pull_request.body }}
+          AUTHOR: ${{ github.actor }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          payload=$(cat <<EOF
+          {
+            "blocks": [
+              {
+                "type": "context",
+                "elements": [
+                  {
+                    "type": "image",
+                    "image_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+                    "alt_text": "GitHub Logo"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*New Pull Request Opened!*"
+                  }
+                ]
+              },
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": ":sparkles: $TITLE",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Repository:* $REPO\n*Branch:* \`$BRANCH\`\n*Author:* $AUTHOR"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Description:*\n${BODY:-_No description provided._}"
+                }
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View Pull Request :link:"
+                    },
+                    "url": "$URL"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+          )
+
+          echo "$payload" | curl -X POST -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK"

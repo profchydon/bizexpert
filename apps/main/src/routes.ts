@@ -1,0 +1,105 @@
+const routes = {
+  WEB: "https://support.rayda.co/",
+  ROOT: "/",
+  LOGIN: "/auth/login",
+  ENTITY_ADMIN_INVITE: "/auth/entity-admin-invite",
+  OFFICE_ADMIN_INVITE: "/auth/office-admin-invite",
+  EMPLOYEE_INVITE: "/auth/employee-invite",
+
+  ONBOARDING: "/onboarding",
+  LEGACY_ONBOARDING: "/legacy-onboarding",
+
+  DASHBOARD: "/dashboard",
+  DEPARTMENT: "/dashboard/department",
+  OVERVIEW: "/dashboard/overview",
+  LOCATIONS: "/dashboard/locations",
+  PRODUCTS: "/dashboard/products",
+  INVENTORY: "/dashboard/inventory",
+  STOCK_REMOVALS: "/dashboard/inventory/stock-removals",
+  TRACK_ITEM: "/dashboard/inventory/track-item",
+  CATEGORIES: "/dashboard/categories",
+  CUSTOMERS: "/dashboard/customers",
+  INTEGRATIONS: "/dashboard/integrations",
+  SALES: "/dashboard/sales",
+  PAYMENTS: "/dashboard/payments",
+  PAYMENTS_TRANSACTIONS: "/dashboard/payments/transactions",
+  PAYMENTS_CASHFLOW: "/dashboard/payments/cashflow",
+  PAYMENTS_CUSTOMERS: "/dashboard/payments/customers",
+  PURCHASES: "/dashboard/purchases",
+  TEAM: "/dashboard/team",
+  OPTIONS: "/dashboard/overview/options",
+  ORDERS: "/dashboard/orders",
+  ASSET_VAULT: "/dashboard/all-equipments",
+
+  STORAGE_ACTION: "/dashboard/renew-storage/view-storage-action",
+  RENEW_STORAGE: "/dashboard/renew-storage",
+  IMPORT_EQUIPMENT_STORAGE: "/dashboard/import-equipment-storage",
+  STORAGE: "/dashboard/storage",
+  STORAGE_IMPORT: "/dashboard/storage/import",
+  STORAGE_SELECT_EMPLOYEES: "/dashboard/storage/select-employees",
+  STORAGE_ASSIGN_EMPLOYEES: "/dashboard/storage/assign-employees",
+  STORAGE_ORDER_SUMMARY: "/dashboard/storage/order-summary",
+
+  CATALOGS: "/dashboard/catalogs",
+  CATALOG_POLICIES: "/dashboard/catalog-policies",
+  APPROVALS: "/dashboard/approvals",
+  CATALOG_POLICY_DETAIL: (id: string) =>
+    `/dashboard/catalog-policies/rules/${id}`,
+  CATALOG_POLICY_EDIT: (id: string) =>
+    `/dashboard/catalog-policies/rules/${id}/edit`,
+  KITS: "/dashboard/kits",
+  KIT_NEW: "/dashboard/kits/new",
+  KIT_DETAIL: (id: string) => `/dashboard/kits/${id}`,
+  KIT_EDIT: (id: string) => `/dashboard/kits/${id}/edit`,
+  CATALOGS_MARKETPLACE: "/dashboard/catalogs/marketplace",
+  CATALOGS_EMPLOYEES_REQUEST: "/dashboard/catalogs/employees-request",
+
+  EMPLOYEES: "/dashboard/employees",
+  EMPLOYEES_VIEW_ACTIONS: "/dashboard/employees/view-actions",
+  EMPLOYEES_ORDER_SUMMARY: "/dashboard/employees/order-summary",
+  EMPLOYEES_OFFBOARD_DEVICES: "/dashboard/employees/offboard-devices",
+  EMPLOYEES_OFFBOARD_SUMMARY: "/dashboard/employees/offboard-summary",
+  EMPLOYEES_ONBOARD_DEVICES: "/dashboard/employees/onboard-devices",
+  EMPLOYEES_ONBOARD_SUMMARY: "/dashboard/employees/onboard-summary",
+
+  All_Equipments: "/dashboard/all-equipments",
+  FLEET_INSIGHTS: "/dashboard/fleet-insights",
+  ALL_EQUIPMENT_REFRESH_VIEW_ACTION:
+    "/dashboard/all-equipments/refresh-view-action",
+  ALL_EQUIPMENT_REFRESH_ORDER_SUMMARY:
+    "/dashboard/all-equipments/refresh-order-summary",
+  CART: "/dashboard/cart",
+  SETTINGS: "/dashboard/settings",
+  SETTINGS_ROLES: "/dashboard/settings/users/manage-roles",
+  SETTINGS_ROLE: (roleId: string) =>
+    `/dashboard/settings/users/manage-roles/${roleId}`,
+  ACCOUNTS: "/dashboard/accounts",
+  SUBSIDIARY_DETAIL: (id: string) => `/dashboard/accounts/subsidiaries/${id}`,
+  OFFICE_DETAIL: (officeId: string) =>
+    `/dashboard/accounts/offices/${officeId}`,
+  TRANSACTIONS: "/dashboard/transactions",
+  TRANSACTION_DETAIL: (id: string) => `/dashboard/transactions/${id}`,
+  INVOICES: "/dashboard/invoices",
+
+  OFFBOARDING: "/dashboard/offboarding",
+
+  EQUIP_EMPLOYEE: "/dashboard/equip-employee",
+  EQUIP_EMPLOYEE_MARKETPLACE: "/dashboard/equip-employee/marketplace",
+  EQUIP_EMPLOYEE_EMPLOYEES: "/dashboard/equip-employee/employees",
+  EQUIP_EMPLOYEE_DEVICES: "/dashboard/equip-employee/devices",
+  EQUIP_EMPLOYEE_ORDER_SUMMARY: "/dashboard/equip-employee/order-summary",
+  EQUIP_EMPLOYEE_ORDERS: "/dashboard/orders",
+
+  SETTINGS_INTEGRATIONS: "/dashboard/settings?settingsType=integrations",
+  SETTINGS_SUBSCRIPTION: "/dashboard/settings?settingsType=subscription",
+
+  EMPLOYEE: "/employee",
+  EMPLOYEE_ASSETS: "/employee/assets",
+  EMPLOYEE_PROFILE: "/employee/profile",
+  EMPLOYEE_CATALOGS: "/employee/catalogs",
+  EMPLOYEE_CATALOG_POLICIES: "/employee/catalog-policies",
+  EMPLOYEE_ORDERS: "/employee/orders",
+  EMPLOYEE_ORDER_SUMMARY: "/employee/order-summary",
+};
+
+export default routes;
