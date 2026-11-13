@@ -1,7 +1,7 @@
 import type {
   MarketplaceProduct,
   MarketplaceSpecification,
-} from "@raydahq/marketplace-ui";
+} from "@/components/marketplace";
 import { IAsset, ISpecification } from "@/types/assets";
 
 const mapSpecification = (spec: ISpecification): MarketplaceSpecification => ({

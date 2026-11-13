@@ -6,7 +6,7 @@ import {
   FavoritesFilterBanner,
   MarketplaceEmptyState,
   ProductCard,
-} from "@raydahq/marketplace-ui";
+} from "@/components/marketplace";
 import Image from "next/image";
 import { search_asset_img } from "@/assets/images";
 import HolidayBanner from "./HolidayBanner";

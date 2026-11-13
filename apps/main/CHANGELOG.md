@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Chore (BizExpert):** Equip Employee marketplace UI is vendored under `src/components/marketplace` instead of the private `@raydahq/marketplace-ui` GitHub Packages dependency. Covered by `marketplaceMainContent.test.ts` and `mapAssetToMarketplaceProduct.test.ts`.
+
 - **Chore (BizExpert):** Stop tracking `localhost.har` and scratch `test*.js` scripts in `apps/main` so clones stay smaller. App routes and assets are unchanged.
 
 - **Fix (BizExpert):** `npm run db:seed` no longer boots Nest/Redis/WhatsApp, so it can run on small EC2 hosts instead of being OOM-killed. Covered by `seed-math.spec.ts`.
