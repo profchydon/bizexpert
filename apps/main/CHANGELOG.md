@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-- **Chore (BizExpert):** Equip Employee marketplace UI is vendored under `src/components/marketplace` instead of the private `@raydahq/marketplace-ui` GitHub Packages dependency. Covered by `marketplaceMainContent.test.ts` and `mapAssetToMarketplaceProduct.test.ts`.
+- **Fix (BizExpert):** The API Compose image compiles `bcrypt` (python/make/g++) and copies the Prisma schema before `npm install`, so seed can hash the demo password. Covered by `docker-compose.spec.ts`.
+
+- **Fix (BizExpert):** Create-store type uses `RadioGroup` `aria-label` plus a `Label` child, matching the Untitled UI radio API so `next build` type-checks. Covered by `locationStoreTypeFields.test.ts`.
+
+- **Fix (BizExpert):** `npm run compose:up` passes `apps/main/.env` into Compose so the web image gets `GITHUB_TOKEN` for GitHub Packages. Covered by `docker-compose.spec.ts`.
+
+- **Feat (BizExpert):** `docker compose up --build` starts Postgres, Redis, the API, and `apps/main`. Covered by `docker-compose.spec.ts`.
+
+- **Fix (BizExpert):** Marketplace package CSS loads through `marketplaceUiCss.ts` in the root layout so Tailwind/PostCSS does not have to resolve `@raydahq/marketplace-ui/style.css`. Covered by `marketplaceMainContent.test.ts` and `postcssConfig.test.ts`.
+
+- **Chore (BizExpert):** Restore `@raydahq/marketplace-ui` from GitHub Packages and drop the vendored `src/components/marketplace` copy. Covered by `marketplaceMainContent.test.ts`.
 
 - **Chore (BizExpert):** Stop tracking `localhost.har` and scratch `test*.js` scripts in `apps/main` so clones stay smaller. App routes and assets are unchanged.
 

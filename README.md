@@ -18,30 +18,30 @@ Multi-location inventory and sales management for Nigerian wholesalers and retai
 
 ## Quick start
 
+One command starts Postgres, Redis, the API (migrate + seed), and the dashboard:
+
 ```bash
-# 1. Infrastructure
-docker compose up -d
-
-# 2. Install dependencies
-npm install --legacy-peer-deps
-
-# 3. Environment
-cp apps/api/.env.example apps/api/.env
-cp apps/main/.env.example apps/main/.env
-# Edit JWT_SECRET, and WhatsApp/OpenAI keys for full MVP
-
-# 4. Database
-npm run db:migrate
-npm run db:seed
-
-# 5. Run apps
-npm run dev
+npm run compose:up
 ```
 
-- Web (main): http://localhost:3000 — set `NEXT_PUBLIC_PRODUCT=bizexpert` and `NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1` in `apps/main/.env`
+That loads `GITHUB_TOKEN` from `apps/main/.env` for GitHub Packages (`@raydahq/marketplace-ui`). Keep the token out of `.env.example`.
 
+- Web: http://localhost:3000
 - API: http://localhost:3001/api/v1
 - Swagger: http://localhost:3001/api/v1/docs
+
+To run the apps on the host instead of in Compose (Postgres/Redis still in Docker):
+
+```bash
+docker compose up -d postgres redis
+npm install --legacy-peer-deps
+cp apps/api/.env.example apps/api/.env
+cp apps/main/.env.example apps/main/.env
+# Host API uses Postgres on localhost:5440 — set DATABASE_URL port to 5440
+npm run db:migrate
+npm run db:seed
+npm run dev
+```
 
 See [apps/web/CHANGELOG.md](apps/web/CHANGELOG.md) for web UI history.
 

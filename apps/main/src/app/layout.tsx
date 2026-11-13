@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "@/styles/globals.css";
+import "@/styles/marketplaceUiCss";
 import "@/styles/vendorDocViewerCss";
 import NextTopLoader from "nextjs-toploader";
 import { Providers } from "@/lib/providers";

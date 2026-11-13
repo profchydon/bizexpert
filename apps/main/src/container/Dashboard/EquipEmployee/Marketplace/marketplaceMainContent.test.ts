@@ -7,32 +7,23 @@ const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 
 const MARKETPLACE = "src/container/Dashboard/EquipEmployee/Marketplace";
 
-describe("local marketplace UI", () => {
-  it("vendors product, filter, and empty-state UI without GitHub Packages", () => {
-    const types = read("src/components/marketplace/types.ts");
-    const barrel = read("src/components/marketplace/index.ts");
-    const products = read(`${MARKETPLACE}/MarketplaceProductsSection.tsx`);
-    const details = read(`${MARKETPLACE}/ProductDetails/Details.tsx`);
-    const filters = read(`${MARKETPLACE}/FilterActions/index.tsx`);
-    const mapper = read(`${MARKETPLACE}/utils/mapAssetToMarketplaceProduct.ts`);
-    const styles = read("src/styles/globals.css");
-    const pkg = read("package.json");
+describe("marketplace-ui type declarations", () => {
+  it("declares the package so next build can type-check imports", () => {
+    const types = read("src/types/marketplace-ui.d.ts");
 
+    assert.match(types, /declare module "@raydahq\/marketplace-ui"/);
     assert.match(types, /export interface MarketplaceProduct/);
     assert.match(types, /export interface MarketplaceSpecification/);
-    assert.match(barrel, /export \{ FilterPanel \}/);
-    assert.match(barrel, /export \{ ProductCard \}/);
-    assert.match(barrel, /export \{ ProductDetail \}/);
-    assert.match(products, /from "@\/components\/marketplace"/);
-    assert.match(details, /from "@\/components\/marketplace"/);
-    assert.match(filters, /from "@\/components\/marketplace"/);
-    assert.match(mapper, /from "@\/components\/marketplace"/);
-    assert.match(styles, /@import "\.\/marketplace-ui.css"/);
-    assert.doesNotMatch(pkg, /@raydahq\/marketplace-ui/);
-    assert.doesNotMatch(products, /@raydahq\/marketplace-ui/);
-    assert.doesNotMatch(details, /@raydahq\/marketplace-ui/);
-    assert.doesNotMatch(filters, /@raydahq\/marketplace-ui/);
-    assert.doesNotMatch(mapper, /@raydahq\/marketplace-ui/);
+  });
+
+  it("loads marketplace-ui CSS from the root layout not globals.css", () => {
+    const layout = read("src/app/layout.tsx");
+    const globals = read("src/styles/globals.css");
+    const css = read("src/styles/marketplaceUiCss.ts");
+
+    assert.match(layout, /@\/styles\/marketplaceUiCss/);
+    assert.match(css, /@raydahq\/marketplace-ui\/style\.css/);
+    assert.doesNotMatch(globals, /@raydahq\/marketplace-ui\/style\.css/);
   });
 });
 

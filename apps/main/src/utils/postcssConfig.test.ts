@@ -59,4 +59,17 @@ describe("vendor CSS imports", () => {
       /@cyntler\/react-doc-viewer\/dist\/index\.css/,
     );
   });
+
+  it("loads marketplace-ui CSS through a JS import Next can resolve", () => {
+    const layout = readFileSync("src/app/layout.tsx", "utf8");
+    const globals = readFileSync("src/styles/globals.css", "utf8");
+    const marketplaceUi = readFileSync(
+      "src/styles/marketplaceUiCss.ts",
+      "utf8",
+    );
+
+    assert.match(layout, /@\/styles\/marketplaceUiCss/);
+    assert.match(marketplaceUi, /@raydahq\/marketplace-ui\/style\.css/);
+    assert.doesNotMatch(globals, /@raydahq\/marketplace-ui\/style\.css/);
+  });
 });

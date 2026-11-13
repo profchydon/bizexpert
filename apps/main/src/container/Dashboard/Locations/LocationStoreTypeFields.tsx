@@ -5,6 +5,7 @@ import {
   RadioGroup,
   RadioButton,
 } from "@/components/base/radio-buttons/radio-buttons";
+import { Label } from "@/components/base/input/label";
 import { Checkbox } from "@/components/base/checkbox/checkbox";
 import type { CreateLocationValues } from "./createLocationSchema";
 import { STORE_MODE_OPTIONS } from "./locationStoreMode";
@@ -33,7 +34,7 @@ export function LocationStoreTypeFields({ form, isEdit }: Props) {
 
   return (
     <RadioGroup
-      label="Store type"
+      aria-label="Store type"
       value={storeMode}
       onChange={(value) =>
         form.setValue("storeMode", value as CreateLocationValues["storeMode"], {
@@ -41,6 +42,7 @@ export function LocationStoreTypeFields({ form, isEdit }: Props) {
         })
       }
     >
+      <Label>Store type</Label>
       {STORE_MODE_OPTIONS.map((option) => (
         <RadioButton
           key={option.value}

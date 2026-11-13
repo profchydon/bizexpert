@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -12,6 +10,11 @@ services:
       - "5440:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bizexpert -d bizexpert"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -21,6 +24,86 @@ services:
       - "6379:6379"
     volumes:
       - ./redis/users.acl:/usr/local/etc/redis/users.acl:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "--user",
+          "bizexpert",
+          "-a",
+          "bizexpert_dev",
+          "ping",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: "3001"
+      DATABASE_URL: postgresql://bizexpert:bizexpert_dev@postgres:5432/bizexpert
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production_use_long_random_string}
+      JWT_EXPIRES_IN: 7d
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_USERNAME: bizexpert
+      REDIS_PASSWORD: bizexpert_dev
+      APP_URL: http://localhost:3000
+      API_URL: http://localhost:3001
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3001/api/v1/docs',(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+
+  web:
+    build:
+      context: ./apps/main
+      dockerfile: Dockerfile.compose
+      secrets:
+        - github_token
+      args:
+        NEXT_PUBLIC_PRODUCT: bizexpert
+        NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_PRODUCT: bizexpert
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+
+secrets:
+  github_token:
+    environment: GITHUB_TOKEN
 
 volumes:
   pgdata:

@@ -1,5 +1,5 @@
 import React from "react";
-import { FilterPanel } from "@/components/marketplace";
+import { FilterPanel } from "@raydahq/marketplace-ui";
 import { TypeActionsProp } from "./TypeActions";
 import { PriceRangeActionProps } from "./PriceRangeAction";
 import { StateActionsProp } from "./StateActions";

@@ -1,5 +1,5 @@
 import React from "react";
-import { ProductDetail } from "@/components/marketplace";
+import { ProductDetail } from "@raydahq/marketplace-ui";
 import { IAsset } from "@/types/assets";
 import { InclusivePriceNote } from "@/components/Tax/InclusivePriceNote";
 import RichText from "@/components/ui/rich-text";

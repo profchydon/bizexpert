@@ -1,0 +1,16 @@
+.git
+.github
+.turbo
+.next
+dist
+node_modules
+coverage
+*.log
+*.har
+.env
+.env.local
+apps/api/.env
+apps/main/.env
+apps/main/.next
+apps/web
+**/.DS_Store

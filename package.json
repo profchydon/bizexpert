@@ -13,7 +13,8 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "db:migrate": "npm run db:migrate --workspace=apps/api",
-    "db:seed": "npm run db:seed --workspace=apps/api"
+    "db:seed": "npm run db:seed --workspace=apps/api",
+    "compose:up": "docker compose --env-file apps/main/.env up --build"
   },
   "devDependencies": {
     "turbo": "^2.3.3"
@@ -23,4 +24,3 @@
     "@types/react-dom": "^19.2.4"
   }
 }
-
